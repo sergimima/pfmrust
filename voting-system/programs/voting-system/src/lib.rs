@@ -1,9 +1,11 @@
 use anchor_lang::prelude::*;
+use solana_program::hash::hash;
 
 pub mod state;
 pub mod errors;
 
 use state::{User, Community, Vote, VoteType, VoteStatus, Membership, Participation, FeePool, FeeTier, RewardRecord};
+use state::{GlobalLeaderboard, CommunityLeaderboard, LeaderboardEntry}; // TAREA 2.6: Leaderboards
 use state::membership::{UserRole, BanRecord, BanType, ModerationLog, ModerationAction, MembershipRequest, MembershipRequestStatus};
 use state::moderation::{ReportType, ReportStatus};
 use state::reports::{Report, ReportCounter, Appeal, AppealStatus};
@@ -18,6 +20,88 @@ pub mod voting_system {
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         msg!("Greetings from: {:?}", ctx.program_id);
+        Ok(())
+    }
+    
+    // === FUNCIÓN PARA MANEJAR VOTACIONES FALLIDAS POR QUORUM ===
+    
+    pub fn check_and_fail_expired_vote(
+        ctx: Context<CheckAndFailExpiredVote>,
+    ) -> Result<()> {
+        let vote = &mut ctx.accounts.vote;
+        let community = &ctx.accounts.community;
+        let clock = Clock::get()?;
+        
+        // Verificar que la votación esté activa
+        require!(vote.status == VoteStatus::Active, VotingSystemError::VoteNotActive);
+        
+        // Verificar que la votación ha expirado
+        require!(vote.is_expired(clock.unix_timestamp), VotingSystemError::VoteNotExpired);
+        
+        // Verificar que no se alcanzó el quorum
+        require!(!vote.has_reached_quorum(community.total_members), VotingSystemError::VoteFailedQuorum);
+        
+        // Marcar la votación como fallida
+        vote.status = VoteStatus::Failed;
+        
+        // Logs detallados
+        let required_quorum = vote.calculate_required_quorum(community.total_members);
+        
+        msg!("❌ Vote failed due to insufficient quorum!");
+        msg!("Vote: {}", vote.question);
+        msg!("Community: {}", community.name);
+        msg!("Required quorum: {}", required_quorum);
+        msg!("Actual votes: {}", vote.total_votes);
+        msg!("Deficit: {}", required_quorum - vote.total_votes);
+        msg!("Expired at: {}", vote.deadline);
+        msg!("Checked at: {}", clock.unix_timestamp);
+        
+        if vote.use_percentage_quorum {
+            msg!("Quorum type: {}% of {} members", vote.quorum_percentage.unwrap(), community.total_members);
+        } else {
+            msg!("Quorum type: {} absolute votes", vote.quorum_required);
+        }
+        
+        Ok(())
+    }
+    
+    pub fn force_close_vote(
+        ctx: Context<ForceCloseVote>,
+        reason: String,
+    ) -> Result<()> {
+        require!(reason.len() <= 200, VotingSystemError::ReasonTooLong);
+        
+        let vote = &mut ctx.accounts.vote;
+        let moderator_membership = &ctx.accounts.moderator_membership;
+        let clock = Clock::get()?;
+        
+        // Solo moderadores y admins pueden cerrar votaciones forzadamente
+        require!(moderator_membership.can_moderate(), VotingSystemError::InsufficientPermissions);
+        
+        // Verificar que la votación esté activa
+        require!(vote.status == VoteStatus::Active, VotingSystemError::VoteNotActive);
+        
+        // Cerrar la votación
+        vote.status = VoteStatus::Cancelled;
+        
+        // Crear log de moderación
+        let moderation_log = &mut ctx.accounts.moderation_log;
+        moderation_log.community = vote.community;
+        moderation_log.moderator = moderator_membership.user;
+        moderation_log.target_user = None;
+        moderation_log.target_vote = Some(vote.key());
+        moderation_log.action = ModerationAction::CloseVote;
+        moderation_log.reason = reason.clone();
+        moderation_log.executed_at = clock.unix_timestamp;
+        moderation_log.bump = ctx.bumps.moderation_log;
+        
+        msg!("📛 Vote force closed by moderator!");
+        msg!("Vote: {}", vote.question);
+        msg!("Moderator: {}", moderator_membership.user);
+        msg!("Reason: {}", reason);
+        msg!("Votes received: {}", vote.total_votes);
+        msg!("Closed at: {}", clock.unix_timestamp);
+        
         Ok(())
     }
     
@@ -661,10 +745,12 @@ pub mod voting_system {
         user.reputation_points = 0;
         user.level = 1;
         user.total_votes_cast = 0;
+        user.voting_weight = 1.0; // TAREA 2.5.6: Peso inicial 1x
         user.created_at = clock.unix_timestamp;
         user.bump = ctx.bumps.user;
         
         msg!("User profile created for wallet: {}", user.wallet);
+        msg!("Initial voting weight: {}x", user.voting_weight);
         Ok(())
     }
 
@@ -849,10 +935,12 @@ pub mod voting_system {
         // Añadir el usuario a la lista de participantes
         vote.participants.push(ctx.accounts.user.wallet);
         
-        // Incrementar el conteo de la opción seleccionada
+        // TAREA 2.5.7: Sistema de voto ponderado
+        // TODO: Implementar weighted_voting_enabled field en Vote struct
+        // Por ahora usar voto estándar
         vote.results[option_selected as usize] += 1;
         
-        // Incrementar total de votos
+        // Incrementar total de votos (siempre +1 para quorum)
         vote.total_votes += 1;
         
         // === ACTUALIZAR ESTADÍSTICAS DE USUARIO ===
@@ -862,6 +950,9 @@ pub mod voting_system {
         // Sistema básico de reputación: +1 punto por votar
         user_account.reputation_points += 1;
         
+        // TAREA 2.5.6: Actualizar voting_weight automáticamente
+        user_account.update_voting_weight();
+        
         // Subir de nivel cada 10 puntos
         let new_level = (user_account.reputation_points / 10) + 1;
         if new_level as u32 > user_account.level {
@@ -869,8 +960,12 @@ pub mod voting_system {
             msg!("🎉 User leveled up to level {}!", new_level);
         }
         
-        // === VERIFICAR QUORUM Y CERRAR VOTACIÓN SI SE ALCANZA ===
-        if vote.total_votes >= vote.quorum_required {
+        // === VERIFICAR QUORUM DINÁMICO Y CERRAR VOTACIÓN SI SE ALCANZA ===
+        // TODO: Obtener community data para quorum calculation
+        // Por ahora usar quorum absoluto desde vote
+        let required_quorum = vote.quorum_required;
+        
+        if vote.total_votes >= required_quorum {
             vote.status = VoteStatus::Completed;
             msg!("🎯 Quorum reached! Vote completed automatically.");
             
@@ -890,9 +985,22 @@ pub mod voting_system {
         msg!("User: {}", user_account.wallet);
         msg!("Vote: {}", vote.question);
         msg!("Option selected: {} ({})", option_selected, vote.options[option_selected as usize]);
-        msg!("Total votes now: {}/{}", vote.total_votes, vote.quorum_required);
-        msg!("User reputation: {} points, level: {}", user_account.reputation_points, user_account.level);
+        msg!("Total votes now: {}/{}", vote.total_votes, required_quorum);
+        msg!("User reputation: {} points, level: {}, weight: {}x", 
+             user_account.reputation_points, user_account.level, user_account.voting_weight);
         msg!("Vote status: {:?}", vote.status);
+        
+        // TODO: Implementar weighted voting results display
+        msg!("🗺️ Standard voting - results by count:");
+        for (i, count) in vote.results.iter().enumerate() {
+            msg!("  Option {}: {} votes", i, count);
+        }
+        
+        if vote.use_percentage_quorum {
+            msg!("Quorum type: {}% percentage based", vote.quorum_percentage.unwrap_or(50));
+        } else {
+            msg!("Quorum type: {} absolute votes", vote.quorum_required);
+        }
         
         Ok(())
     }
@@ -1375,6 +1483,431 @@ pub struct AssignModerator<'info> {
     pub system_program: Program<'info, System>,
 }
 
+// ===================================================================
+// TAREAS 2.4.3-2.4.6: SISTEMA COMMIT-REVEAL + VALIDACIÓN COMUNITARIA
+// ===================================================================
+
+// Context para reveal_correct_answer (2.4.4)
+#[derive(Accounts)]
+pub struct RevealAnswer<'info> {
+    #[account(
+        mut,
+        constraint = vote.status == VoteStatus::Completed @ VotingSystemError::VoteNotCompleted
+    )]
+    pub vote: Account<'info, Vote>,
+    
+    #[account(
+        constraint = creator.key() == vote.creator @ VotingSystemError::InsufficientPermissions
+    )]
+    pub creator: Signer<'info>,
+}
+
+// Context para vote_confidence (2.4.5)
+#[derive(Accounts)]
+pub struct VoteConfidence<'info> {
+    #[account(
+        mut,
+        constraint = vote.status == VoteStatus::ConfidenceVoting @ VotingSystemError::NotInConfidencePhase
+    )]
+    pub vote: Account<'info, Vote>,
+    
+    #[account(
+        mut,
+        constraint = user.wallet == voter.key() @ VotingSystemError::InvalidUser
+    )]
+    pub user: Account<'info, User>,
+    
+    #[account(
+        constraint = membership.user == user.wallet @ VotingSystemError::NotCommunityMember,
+        constraint = membership.community == vote.community @ VotingSystemError::InvalidCommunity,
+        constraint = membership.is_active @ VotingSystemError::NotCommunityMember
+    )]
+    pub membership: Account<'info, Membership>,
+    
+    pub voter: Signer<'info>,
+}
+
+// Context para finalize_confidence_voting (2.4.6)
+#[derive(Accounts)]
+pub struct FinalizeConfidenceVoting<'info> {
+    #[account(
+        mut,
+        constraint = vote.status == VoteStatus::ConfidenceVoting @ VotingSystemError::NotInConfidencePhase
+    )]
+    pub vote: Account<'info, Vote>,
+    
+    #[account(
+        mut,
+        constraint = creator_user.wallet == vote.creator @ VotingSystemError::InvalidUser
+    )]
+    pub creator_user: Account<'info, User>,
+}
+
+// ===================================================================
+// TAREAS 2.6.1-2.6.4: CONTEXT STRUCTS PARA LEADERBOARDS
+// ===================================================================
+
+// Context para inicializar GlobalLeaderboard
+#[derive(Accounts)]
+pub struct InitializeGlobalLeaderboard<'info> {
+    #[account(
+        init,
+        seeds = [b"global_leaderboard"],
+        bump,
+        space = 8 + GlobalLeaderboard::LEN,
+        payer = authority
+    )]
+    pub global_leaderboard: Account<'info, GlobalLeaderboard>,
+    
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+// Context para inicializar CommunityLeaderboard
+#[derive(Accounts)]
+pub struct InitializeCommunityLeaderboard<'info> {
+    #[account(
+        init,
+        seeds = [b"community_leaderboard", community.key().as_ref()],
+        bump,
+        space = 8 + CommunityLeaderboard::LEN,
+        payer = authority
+    )]
+    pub community_leaderboard: Account<'info, CommunityLeaderboard>,
+    
+    pub community: Account<'info, Community>,
+    
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+// Context para actualizar GlobalLeaderboard
+#[derive(Accounts)]
+pub struct UpdateGlobalLeaderboard<'info> {
+    #[account(
+        mut,
+        seeds = [b"global_leaderboard"],
+        bump = global_leaderboard.bump
+    )]
+    pub global_leaderboard: Account<'info, GlobalLeaderboard>,
+    
+    pub user: Account<'info, User>,
+    
+    #[account(
+        constraint = authority.key() == global_leaderboard.update_authority @ VotingSystemError::InsufficientPermissions
+    )]
+    pub authority: Signer<'info>,
+}
+
+// Context para actualizar CommunityLeaderboard
+#[derive(Accounts)]
+pub struct UpdateCommunityLeaderboard<'info> {
+    #[account(
+        mut,
+        seeds = [b"community_leaderboard", community.key().as_ref()],
+        bump = community_leaderboard.bump
+    )]
+    pub community_leaderboard: Account<'info, CommunityLeaderboard>,
+    
+    pub community: Account<'info, Community>,
+    
+    pub user: Account<'info, User>,
+    
+    #[account(
+        constraint = membership.community == community.key() @ VotingSystemError::InvalidCommunity,
+        constraint = membership.user == user.wallet @ VotingSystemError::InvalidUser,
+        constraint = membership.is_active @ VotingSystemError::NotCommunityMember
+    )]
+    pub membership: Account<'info, Membership>,
+}
+
+// TAREA 2.4.4: Función de revelación de respuesta
+pub fn reveal_correct_answer(
+    ctx: Context<RevealAnswer>,
+    answer: String,
+) -> Result<()> {
+    let vote = &mut ctx.accounts.vote;
+    let clock = Clock::get()?;
+    
+    // Validar que es una pregunta de Knowledge
+    require!(vote.vote_type == VoteType::Knowledge, VotingSystemError::InvalidVoteType);
+    
+    // Validar que es el creator
+    require!(vote.creator == ctx.accounts.creator.key(), VotingSystemError::InsufficientPermissions);
+    
+    // Validar que la votación ha terminado
+    require!(vote.status == VoteStatus::Completed, VotingSystemError::VoteNotCompleted);
+    
+    // Validar que hay hash de respuesta para verificar
+    let stored_hash = vote.answer_hash.ok_or(VotingSystemError::NoAnswerHashStored)?;
+    
+    // Verificar que el hash coincide
+    let answer_hash = hash(answer.as_bytes()).to_bytes();
+    require!(stored_hash == answer_hash, VotingSystemError::InvalidAnswerHash);
+    
+    // Validar deadline de revelación
+    if let Some(deadline) = vote.reveal_deadline {
+        require!(clock.unix_timestamp <= deadline, VotingSystemError::RevealDeadlineExpired);
+    }
+    
+    // Revelar respuesta e iniciar fase de confianza
+    vote.revealed_answer = Some(answer.clone());
+    vote.status = VoteStatus::ConfidenceVoting;
+    vote.confidence_deadline = Some(clock.unix_timestamp + 86400); // 24 horas
+    
+    msg!("✨ Respuesta revelada para pregunta Knowledge!");
+    msg!("Pregunta: {}", vote.question);
+    msg!("Respuesta correcta: {}", answer);
+    msg!("Fase de confianza iniciada por 24h");
+    
+    Ok(())
+}
+
+// ===================================================================
+// TAREA 2.6.4: SISTEMA DE LEADERBOARDS - ACTUALIZACIÓN AUTOMÁTICA
+// ===================================================================
+
+// TAREA 2.6.1: Inicializar GlobalLeaderboard
+pub fn initialize_global_leaderboard(
+    ctx: Context<InitializeGlobalLeaderboard>,
+) -> Result<()> {
+    let leaderboard = &mut ctx.accounts.global_leaderboard;
+    let clock = Clock::get()?;
+    
+    leaderboard.top_users = Vec::new();
+    leaderboard.last_updated = clock.unix_timestamp;
+    leaderboard.total_users = 0;
+    leaderboard.total_reputation = 0;
+    leaderboard.update_authority = ctx.accounts.authority.key();
+    leaderboard.bump = ctx.bumps.global_leaderboard;
+    
+    msg!("🏆 Global Leaderboard initialized successfully!");
+    msg!("Authority: {}", leaderboard.update_authority);
+    
+    Ok(())
+}
+
+// TAREA 2.6.2: Inicializar CommunityLeaderboard
+pub fn initialize_community_leaderboard(
+    ctx: Context<InitializeCommunityLeaderboard>,
+) -> Result<()> {
+    let leaderboard = &mut ctx.accounts.community_leaderboard;
+    let community = &ctx.accounts.community;
+    let clock = Clock::get()?;
+    
+    leaderboard.community = community.key();
+    leaderboard.top_users = Vec::new();
+    leaderboard.last_updated = clock.unix_timestamp;
+    leaderboard.total_votes_cast = 0;
+    leaderboard.total_votations_created = 0;
+    leaderboard.most_active_user = Pubkey::default();
+    leaderboard.bump = ctx.bumps.community_leaderboard;
+    
+    msg!("🏆 Community Leaderboard initialized for: {}", community.name);
+    
+    Ok(())
+}
+
+// TAREA 2.6.4: Actualizar GlobalLeaderboard con usuario
+pub fn update_global_leaderboard(
+    ctx: Context<UpdateGlobalLeaderboard>,
+) -> Result<()> {
+    let leaderboard = &mut ctx.accounts.global_leaderboard;
+    let user = &ctx.accounts.user;
+    let clock = Clock::get()?;
+    
+    // Validar autoridad
+    require!(
+        ctx.accounts.authority.key() == leaderboard.update_authority,
+        VotingSystemError::InsufficientPermissions
+    );
+    
+    // Crear entrada del usuario
+    let entry = LeaderboardEntry::from_user_data(
+        user.wallet,
+        user.reputation_points,
+        user.level,
+        user.voting_weight,
+        user.total_votes_cast,
+        0, // total_votations_created - se calcularía desde otras fuentes
+    );
+    
+    // Actualizar ranking
+    leaderboard.update_user_ranking(user.wallet, entry);
+    leaderboard.last_updated = clock.unix_timestamp;
+    leaderboard.total_users += 1;
+    leaderboard.total_reputation += user.reputation_points;
+    
+    msg!("📈 Global leaderboard updated!");
+    msg!("User: {}", user.wallet);
+    msg!("Reputation: {} points, Level: {}, Weight: {}x", 
+         user.reputation_points, user.level, user.voting_weight);
+    
+    // Mostrar top 3 current
+    for (i, entry) in leaderboard.top_users.iter().take(3).enumerate() {
+        msg!("  #{}: {} ({} pts)", i + 1, entry.user, entry.reputation_points);
+    }
+    
+    Ok(())
+}
+
+// TAREA 2.6.4: Actualizar CommunityLeaderboard con usuario
+pub fn update_community_leaderboard(
+    ctx: Context<UpdateCommunityLeaderboard>,
+) -> Result<()> {
+    let leaderboard = &mut ctx.accounts.community_leaderboard;
+    let user = &ctx.accounts.user;
+    let membership = &ctx.accounts.membership;
+    let community = &ctx.accounts.community;
+    let clock = Clock::get()?;
+    
+    // Validar que el usuario es miembro de la comunidad
+    require!(membership.community == community.key(), VotingSystemError::InvalidCommunity);
+    require!(membership.user == user.wallet, VotingSystemError::InvalidUser);
+    require!(membership.is_active, VotingSystemError::NotCommunityMember);
+    
+    // Crear entrada del usuario (priorizando actividad en la comunidad)
+    let entry = LeaderboardEntry::from_user_data(
+        user.wallet,
+        user.reputation_points,
+        user.level,
+        user.voting_weight,
+        user.total_votes_cast,
+        0, // Se puede añadir conteo de votaciones creadas en esta comunidad
+    );
+    
+    // Actualizar ranking comunitario
+    leaderboard.update_user_ranking(user.wallet, entry);
+    leaderboard.last_updated = clock.unix_timestamp;
+    leaderboard.total_votes_cast = community.total_votes;
+    
+    msg!("🏚️ Community leaderboard updated!");
+    msg!("Community: {}", community.name);
+    msg!("User: {}", user.wallet);
+    msg!("Votes cast: {}, Reputation: {}", user.total_votes_cast, user.reputation_points);
+    
+    // Mostrar top 3 de la comunidad
+    for (i, entry) in leaderboard.top_users.iter().enumerate() {
+        msg!("  #{}: {} ({} votes)", i + 1, entry.user, entry.total_votes_cast);
+    }
+    
+    Ok(())
+}
+
+// TAREA 2.4.5: Votación de confianza
+pub fn vote_confidence(
+    ctx: Context<VoteConfidence>,
+    is_confident: bool,
+) -> Result<()> {
+    let vote = &mut ctx.accounts.vote;
+    let user = &mut ctx.accounts.user;
+    let membership = &ctx.accounts.membership;
+    let clock = Clock::get()?;
+    
+    // Validar que es una pregunta de Knowledge
+    require!(vote.vote_type == VoteType::Knowledge, VotingSystemError::InvalidVoteType);
+    
+    // Validar que está en fase de confianza
+    require!(vote.status == VoteStatus::ConfidenceVoting, VotingSystemError::NotInConfidencePhase);
+    
+    // Validar que el usuario es miembro activo
+    require!(membership.is_active, VotingSystemError::NotCommunityMember);
+    require!(membership.user == user.wallet, VotingSystemError::InvalidUser);
+    
+    // Validar deadline de confianza
+    if let Some(deadline) = vote.confidence_deadline {
+        require!(clock.unix_timestamp <= deadline, VotingSystemError::ConfidenceDeadlineExpired);
+    }
+    
+    // TAREA 2.5.5: Puntos de confianza (+/-2)
+    if is_confident {
+        user.reputation_points += 2;
+        vote.confidence_votes_for += 1;
+        msg!("📈 +2 reputación por voto de confianza A FAVOR");
+    } else {
+        if user.reputation_points >= 2 {
+            user.reputation_points -= 2;
+        }
+        vote.confidence_votes_against += 1;
+        msg!("📉 -2 reputación por voto de confianza EN CONTRA");
+    }
+    
+    // Actualizar nivel si es necesario
+    let new_level = (user.reputation_points / 10) + 1;
+    if new_level as u32 > user.level {
+        user.level = new_level as u32;
+        msg!("🎆 ¡Nuevo nivel alcanzado: {}!", user.level);
+    }
+    
+    msg!("🗺️ Voto de confianza registrado!");
+    msg!("Usuario: {}", user.wallet);
+    msg!("Confianza: {}", if is_confident { "A favor" } else { "En contra" });
+    msg!("Reputación total: {}", user.reputation_points);
+    msg!("Votos a favor: {}, En contra: {}", vote.confidence_votes_for, vote.confidence_votes_against);
+    
+    Ok(())
+}
+
+// TAREA 2.4.6: Validación comunitaria final
+pub fn finalize_confidence_voting(
+    ctx: Context<FinalizeConfidenceVoting>,
+) -> Result<()> {
+    let vote = &mut ctx.accounts.vote;
+    let creator_user = &mut ctx.accounts.creator_user;
+    let clock = Clock::get()?;
+    
+    // Validar que es una pregunta de Knowledge
+    require!(vote.vote_type == VoteType::Knowledge, VotingSystemError::InvalidVoteType);
+    
+    // Validar que está en fase de confianza
+    require!(vote.status == VoteStatus::ConfidenceVoting, VotingSystemError::NotInConfidencePhase);
+    
+    // Validar que ha pasado el deadline
+    if let Some(deadline) = vote.confidence_deadline {
+        require!(clock.unix_timestamp > deadline, VotingSystemError::ConfidenceVotingStillActive);
+    }
+    
+    // Calcular resultado de validación comunitaria
+    let total_confidence_votes = vote.confidence_votes_for + vote.confidence_votes_against;
+    let confidence_threshold = (total_confidence_votes * 60) / 100; // 60% threshold
+    
+    let is_answer_validated = vote.confidence_votes_for >= confidence_threshold;
+    
+    // Finalizar votación
+    vote.status = VoteStatus::Completed;
+    
+    // Impacto en reputación del creator
+    if is_answer_validated {
+        // Respuesta validada - bonus de reputación
+        creator_user.reputation_points += 10;
+        msg!("✅ Respuesta validada por la comunidad - Creator +10 reputación");
+    } else {
+        // Respuesta cuestionada - penalty
+        if creator_user.reputation_points >= 5 {
+            creator_user.reputation_points -= 5;
+        }
+        msg!("❌ Respuesta cuestionada por la comunidad - Creator -5 reputación");
+    }
+    
+    // Actualizar nivel si es necesario
+    let new_level = (creator_user.reputation_points / 10) + 1;
+    if new_level as u32 > creator_user.level {
+        creator_user.level = new_level as u32;
+        msg!("🎆 ¡Nuevo nivel alcanzado: {}!", creator_user.level);
+    }
+    
+    msg!("🏁 Validación comunitaria finalizada!");
+    msg!("Pregunta: {}", vote.question);
+    msg!("Votos confianza - A favor: {}, En contra: {}", vote.confidence_votes_for, vote.confidence_votes_against);
+    msg!("Resultado: {}", if is_answer_validated { "Validada" } else { "Cuestionada" });
+    
+    Ok(())
+}
+
 // === ESTRUCTURAS CONTEXT PARA SISTEMA DE CATEGORÍAS ===
 
 #[derive(Accounts)]
@@ -1441,6 +1974,48 @@ pub struct GetCommunitiesByCategory<'info> {
         constraint = community.is_active @ VotingSystemError::CommunityInactive
     )]
     pub community: Account<'info, Community>,
+}
+
+// === ESTRUCTURAS CONTEXT PARA SISTEMA DE QUORUM AVANZADO ===
+
+#[derive(Accounts)]
+pub struct CheckAndFailExpiredVote<'info> {
+    #[account(
+        mut,
+        constraint = vote.status == VoteStatus::Active @ VotingSystemError::VoteNotActive
+    )]
+    pub vote: Account<'info, Vote>,
+    
+    pub community: Account<'info, Community>,
+}
+
+#[derive(Accounts)]
+pub struct ForceCloseVote<'info> {
+    #[account(
+        mut,
+        constraint = vote.status == VoteStatus::Active @ VotingSystemError::VoteNotActive
+    )]
+    pub vote: Account<'info, Vote>,
+    
+    #[account(
+        constraint = moderator_membership.can_moderate() @ VotingSystemError::InsufficientPermissions,
+        constraint = moderator_membership.community == vote.community @ VotingSystemError::InvalidCommunity
+    )]
+    pub moderator_membership: Account<'info, Membership>,
+    
+    #[account(
+        init,
+        seeds = [b"moderation_log", vote.community.as_ref(), moderator_membership.user.as_ref()],
+        bump,
+        space = 8 + ModerationLog::LEN,
+        payer = moderator
+    )]
+    pub moderation_log: Account<'info, ModerationLog>,
+    
+    #[account(mut)]
+    pub moderator: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]

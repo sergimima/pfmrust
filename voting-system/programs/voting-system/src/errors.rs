@@ -160,8 +160,6 @@ pub enum VotingSystemError {
     CommunityRequiresApproval,
     
     // NUEVOS ERRORES PARA SISTEMA DE CATEGORÍAS
-    #[msg("Description too long. Maximum 200 characters.")]
-    DescriptionTooLong,
     
     #[msg("Color too long. Maximum 7 characters.")]
     ColorTooLong,
@@ -174,4 +172,42 @@ pub enum VotingSystemError {
     
     #[msg("Category mismatch. Community doesn't belong to this category.")]
     CategoryMismatch,
+    
+    // NUEVOS ERRORES PARA SISTEMA DE QUORUM AVANZADO
+    #[msg("Missing quorum percentage. Required when using percentage quorum.")]
+    MissingQuorumPercentage,
+    
+    #[msg("Invalid quorum percentage. Must be between 1-100.")]
+    InvalidQuorumPercentage,
+    
+    #[msg("Vote failed due to insufficient quorum.")]
+    VoteFailedQuorum,
+    
+    #[msg("Vote has not expired yet.")]
+    VoteNotExpired,
+    
+    // NUEVOS ERRORES PARA SISTEMA COMMIT-REVEAL (2.4.3-2.4.6)
+    #[msg("Invalid vote type for this operation.")]
+    InvalidVoteType,
+    
+    #[msg("Vote not completed yet.")]
+    VoteNotCompleted,
+    
+    #[msg("No answer hash stored for verification.")]
+    NoAnswerHashStored,
+    
+    #[msg("Invalid answer hash. Answer doesn't match stored hash.")]
+    InvalidAnswerHash,
+    
+    #[msg("Reveal deadline has expired.")]
+    RevealDeadlineExpired,
+    
+    #[msg("Not in confidence voting phase.")]
+    NotInConfidencePhase,
+    
+    #[msg("Confidence voting deadline has expired.")]
+    ConfidenceDeadlineExpired,
+    
+    #[msg("Confidence voting is still active.")]
+    ConfidenceVotingStillActive,
 }

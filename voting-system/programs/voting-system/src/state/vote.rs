@@ -12,6 +12,8 @@ pub enum VoteStatus {
     Completed,
     Cancelled,
     Failed,         // Votación fallida por quorum
+    AwaitingReveal, // Esperando revelación de respuesta
+    ConfidenceVoting, // Votación de confianza activa
 }
 
 #[account]
@@ -32,6 +34,15 @@ pub struct Vote {
     pub status: VoteStatus,         // Active | Completed | Cancelled | Failed
     pub fee_per_vote: u64,          // Fee en lamports (0.01 SOL)
     pub created_at: i64,
+    // Campos para sistema commit-reveal (2.4.3-2.4.6)
+    pub answer_hash: Option<[u8; 32]>,     // Hash respuesta oculta
+    pub revealed_answer: Option<String>,   // Respuesta revelada
+    pub reveal_deadline: Option<i64>,      // Deadline para revelar
+    pub confidence_votes_for: u32,         // Votos confianza a favor
+    pub confidence_votes_against: u32,     // Votos confianza contra
+    pub confidence_deadline: Option<i64>,  // Deadline votación confianza
+    pub weighted_voting_enabled: bool,     // TAREA 2.5.7: Votación ponderada opcional
+    pub weighted_results: Vec<f32>,         // Resultados ponderados por reputación
     pub bump: u8,
 }
 
@@ -53,6 +64,15 @@ impl Vote {
         1 + // status
         8 + // fee_per_vote
         8 + // created_at
+        // Campos commit-reveal
+        1 + 32 + // answer_hash (Option<[u8; 32]>)
+        1 + 4 + 200 + // revealed_answer (Option<String>)
+        1 + 8 + // reveal_deadline (Option<i64>)
+        4 + // confidence_votes_for
+        4 + // confidence_votes_against
+        1 + 8 + // confidence_deadline (Option<i64>)
+        1 + // weighted_voting_enabled
+        4 + (4 * 4) + // weighted_results (Vec<f32>, max 4)
         1; // bump
     
     // Método para calcular quorum dinámico
