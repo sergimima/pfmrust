@@ -11,6 +11,7 @@ pub enum VoteStatus {
     Active,
     Completed,
     Cancelled,
+    Failed,         // Votación fallida por quorum
 }
 
 #[account]
@@ -24,9 +25,11 @@ pub struct Vote {
     pub participants: Vec<Pubkey>,  // Lista de votantes (max 100)
     pub results: Vec<u64>,          // Conteo por opción
     pub total_votes: u64,           // Total de votos
-    pub quorum_required: u64,       // Quorum necesario
+    pub quorum_required: u64,       // Quorum necesario (absoluto)
+    pub quorum_percentage: Option<u8>, // Quorum por porcentaje (0-100)
+    pub use_percentage_quorum: bool, // Si usar quorum por porcentaje
     pub deadline: i64,              // Timestamp límite
-    pub status: VoteStatus,         // Active | Completed | Cancelled
+    pub status: VoteStatus,         // Active | Completed | Cancelled | Failed
     pub fee_per_vote: u64,          // Fee en lamports (0.01 SOL)
     pub created_at: i64,
     pub bump: u8,
@@ -44,9 +47,42 @@ impl Vote {
         4 + (8 * 4) + // results (max 4)
         8 + // total_votes
         8 + // quorum_required
+        1 + 1 + // quorum_percentage (Option<u8>)
+        1 + // use_percentage_quorum
         8 + // deadline
         1 + // status
         8 + // fee_per_vote
         8 + // created_at
         1; // bump
+    
+    // Método para calcular quorum dinámico
+    pub fn calculate_required_quorum(&self, total_members: u64) -> u64 {
+        if self.use_percentage_quorum {
+            if let Some(percentage) = self.quorum_percentage {
+                // Calcular quorum por porcentaje de miembros totales
+                let quorum_by_percentage = (total_members * percentage as u64) / 100;
+                // Mínimo 1 voto requerido
+                std::cmp::max(1, quorum_by_percentage)
+            } else {
+                self.quorum_required
+            }
+        } else {
+            self.quorum_required
+        }
+    }
+    
+    // Verificar si se ha alcanzado el quorum
+    pub fn has_reached_quorum(&self, total_members: u64) -> bool {
+        self.total_votes >= self.calculate_required_quorum(total_members)
+    }
+    
+    // Verificar si la votación ha expirado
+    pub fn is_expired(&self, current_timestamp: i64) -> bool {
+        current_timestamp >= self.deadline
+    }
+    
+    // Verificar si la votación falló por quorum
+    pub fn should_fail_for_quorum(&self, total_members: u64, current_timestamp: i64) -> bool {
+        self.is_expired(current_timestamp) && !self.has_reached_quorum(total_members)
+    }
 }

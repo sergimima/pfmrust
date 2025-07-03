@@ -155,4 +155,23 @@ pub enum VotingSystemError {
     
     #[msg("Membership request already exists.")]
     RequestAlreadyExists,
+    
+    #[msg("Community requires approval to join. Use request_membership instead.")]
+    CommunityRequiresApproval,
+    
+    // NUEVOS ERRORES PARA SISTEMA DE CATEGORÍAS
+    #[msg("Description too long. Maximum 200 characters.")]
+    DescriptionTooLong,
+    
+    #[msg("Color too long. Maximum 7 characters.")]
+    ColorTooLong,
+    
+    #[msg("Icon too long. Maximum 10 characters.")]
+    IconTooLong,
+    
+    #[msg("Invalid category. Must be 0-10.")]
+    InvalidCategory,
+    
+    #[msg("Category mismatch. Community doesn't belong to this category.")]
+    CategoryMismatch,
 }

@@ -12,6 +12,7 @@ pub struct Community {
     pub fee_collected: u64,         // Total fees en lamports
     pub created_at: i64,            // Timestamp creación
     pub is_active: bool,            // Estado activo/inactivo
+    pub requires_approval: bool,    // Requiere aprobación para unirse
     pub bump: u8,                   // PDA bump
 }
 
@@ -27,5 +28,6 @@ impl Community {
         8 + // fee_collected
         8 + // created_at
         1 + // is_active
+        1 + // requires_approval
         1; // bump
 }

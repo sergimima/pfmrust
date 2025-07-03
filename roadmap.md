@@ -47,13 +47,13 @@
 - [x] **1.4.4** Crear `assign_moderator` instruction - ✅ COMPLETADO
 - [x] **1.4.5** Añadir validaciones de permisos por rol - ✅ COMPLETADO
 - [x] **1.4.6** Implementar `remove_member` instruction - ✅ COMPLETADO
-- [ ] **1.4.7** ❌ Sistema de aprobación de miembros - **NO IMPLEMENTADO**
-  - [ ] **1.4.7.1** Crear `request_membership()` instruction
-  - [ ] **1.4.7.2** Crear `approve_membership()` instruction  
-  - [ ] **1.4.7.3** Crear `reject_membership()` instruction
-  - [ ] **1.4.7.4** Account MembershipRequest para solicitudes pendientes
-  - [ ] **1.4.7.5** Modificar `join_community()` para requerir aprobación opcional
-  - [ ] **1.4.7.6** Tests del sistema de aprobación completo
+- [x] **1.4.7** ✅ Sistema de aprobación de miembros - **IMPLEMENTADO**
+ - [x] **1.4.7.1** Crear `request_membership()` instruction
+ - [x] **1.4.7.2** Crear `approve_membership()` instruction  
+ - [x] **1.4.7.3** Crear `reject_membership()` instruction
+ - [x] **1.4.7.4** Account MembershipRequest para solicitudes pendientes
+ - [x] **1.4.7.5** Modificar `join_community()` para requerir aprobación opcional
+ - [x] **1.4.7.6** Tests del sistema de aprobación completo
 
 ### **1.5 Pruebas Unitarias Básicas (80% ✅)**
 - [x] **1.5.1** Configurar framework de testing - ✅ COMPLETADO
@@ -81,11 +81,11 @@
 ## ⚠️ **FASE 2: FUNCIONALIDADES AVANZADAS (40% COMPLETADO)**
 
 ### **2.1 Sistema de Categorías (30% ⚠️)**
-- [x] **2.1.1** Crear enum VotingCategory - ✅ COMPLETADO (community.category: u8)
+- [x] **2.1.1** Crear enum VotingCategory - ✅ COMPLETADO
 - [x] **2.1.2** Añadir campo category a Voting account - ✅ COMPLETADO
-- [ ] **2.1.3** ❌ Implementar filtrado por categorías - **NO IMPLEMENTADO**
-- [ ] **2.1.4** ❌ Crear categorías personalizadas (Custom) - **NO IMPLEMENTADO**
-- [ ] **2.1.5** ❌ Sistema de suscripción a categorías - **NO IMPLEMENTADO**
+- [x] **2.1.3** Implementar filtrado por categorías - ✅ COMPLETADO
+- [x] **2.1.4** Crear categorías personalizadas (Custom) - ✅ COMPLETADO
+- [x] **2.1.5** Sistema de suscripción a categorías - ✅ COMPLETADO
 - [ ] **2.1.6** ❌ Tests para sistema de categorías - **NO IMPLEMENTADO**
 - [ ] **2.1.7** ❌ Documentación de categorías - **NO IMPLEMENTADO**
 

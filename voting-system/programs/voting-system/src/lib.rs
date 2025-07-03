@@ -7,6 +7,7 @@ use state::{User, Community, Vote, VoteType, VoteStatus, Membership, Participati
 use state::membership::{UserRole, BanRecord, BanType, ModerationLog, ModerationAction, MembershipRequest, MembershipRequestStatus};
 use state::moderation::{ReportType, ReportStatus};
 use state::reports::{Report, ReportCounter, Appeal, AppealStatus};
+use state::categories::{VotingCategory, CustomCategory, CategorySubscription};
 use errors::VotingSystemError;
 
 declare_id!("98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z");
@@ -17,6 +18,121 @@ pub mod voting_system {
 
     pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         msg!("Greetings from: {:?}", ctx.program_id);
+        Ok(())
+    }
+    
+    // === FUNCIONES DEL SISTEMA DE CATEGORÍAS ===
+    
+    pub fn create_custom_category(
+        ctx: Context<CreateCustomCategory>,
+        name: String,
+        description: String,
+        color: String,
+        icon: String,
+    ) -> Result<()> {
+        require!(name.len() <= 50, VotingSystemError::NameTooLong);
+        require!(description.len() <= 200, VotingSystemError::DescriptionTooLong);
+        require!(color.len() <= 7, VotingSystemError::ColorTooLong);
+        require!(icon.len() <= 10, VotingSystemError::IconTooLong);
+        
+        let custom_category = &mut ctx.accounts.custom_category;
+        let admin_membership = &ctx.accounts.admin_membership;
+        let community = &ctx.accounts.community;
+        let clock = Clock::get()?;
+        
+        // Solo admins pueden crear categorías personalizadas
+        require!(admin_membership.is_admin(), VotingSystemError::InsufficientPermissions);
+        
+        // Inicializar categoría personalizada
+        custom_category.community = community.key();
+        custom_category.name = name.clone();
+        custom_category.description = description.clone();
+        custom_category.color = color.clone();
+        custom_category.icon = icon.clone();
+        custom_category.created_by = admin_membership.user;
+        custom_category.created_at = clock.unix_timestamp;
+        custom_category.is_active = true;
+        custom_category.usage_count = 0;
+        custom_category.bump = ctx.bumps.custom_category;
+        
+        msg!("🎨 Custom category created successfully!");
+        msg!("Name: {}", name);
+        msg!("Description: {}", description);
+        msg!("Color: {}", color);
+        msg!("Icon: {}", icon);
+        msg!("Community: {}", community.name);
+        msg!("Created by: {}", admin_membership.user);
+        
+        Ok(())
+    }
+    
+    pub fn subscribe_to_category(
+        ctx: Context<SubscribeToCategory>,
+        category: VotingCategory,
+        community: Option<Pubkey>,
+        enable_notifications: bool,
+    ) -> Result<()> {
+        let subscription = &mut ctx.accounts.subscription;
+        let user = &ctx.accounts.user;
+        let clock = Clock::get()?;
+        
+        // Inicializar suscripción
+        subscription.user = user.wallet;
+        subscription.category = category;
+        subscription.community = community;
+        subscription.subscribed_at = clock.unix_timestamp;
+        subscription.is_active = true;
+        subscription.notification_enabled = enable_notifications;
+        subscription.bump = ctx.bumps.subscription;
+        
+        msg!("📢 Subscribed to category successfully!");
+        msg!("User: {}", user.wallet);
+        msg!("Category: {:?}", category);
+        if let Some(community_key) = community {
+            msg!("Community: {}", community_key);
+        } else {
+            msg!("Global subscription");
+        }
+        msg!("Notifications: {}", enable_notifications);
+        
+        Ok(())
+    }
+    
+    pub fn unsubscribe_from_category(
+        ctx: Context<UnsubscribeFromCategory>,
+    ) -> Result<()> {
+        let subscription = &mut ctx.accounts.subscription;
+        
+        // Desactivar suscripción
+        subscription.is_active = false;
+        subscription.notification_enabled = false;
+        
+        msg!("🔕 Unsubscribed from category successfully!");
+        msg!("User: {}", subscription.user);
+        msg!("Category: {:?}", subscription.category);
+        
+        Ok(())
+    }
+    
+    pub fn get_communities_by_category(
+        ctx: Context<GetCommunitiesByCategory>,
+        category: u8,
+    ) -> Result<()> {
+        let community = &ctx.accounts.community;
+        
+        // Validar categoría
+        require!(VotingCategory::is_valid_category(category), VotingSystemError::InvalidCategory);
+        
+        // Verificar si la comunidad coincide con la categoría
+        require!(community.category == category, VotingSystemError::CategoryMismatch);
+        require!(community.is_active, VotingSystemError::CommunityInactive);
+        
+        msg!("🏷️ Community matches category filter!");
+        msg!("Community: {}", community.name);
+        msg!("Category: {} ({})", category, VotingCategory::from_u8(category).unwrap().name());
+        msg!("Members: {}", community.total_members);
+        msg!("Votes: {}", community.total_votes);
+        
         Ok(())
     }
     
@@ -557,6 +673,7 @@ pub mod voting_system {
         name: String,
         category: u8,
         quorum_percentage: u8,
+        requires_approval: bool,
     ) -> Result<()> {
         require!(name.len() <= 50, VotingSystemError::NameTooLong);
         require!(quorum_percentage > 0 && quorum_percentage <= 100, VotingSystemError::InvalidQuorum);
@@ -566,7 +683,7 @@ pub mod voting_system {
         
         community.authority = ctx.accounts.authority.key();
         community.moderators = Vec::new();
-        community.name = name;
+        community.name = name.clone();
         community.category = category;
         community.quorum_percentage = quorum_percentage;
         community.total_members = 1; // Creator is first member
@@ -574,9 +691,11 @@ pub mod voting_system {
         community.fee_collected = 0;
         community.created_at = clock.unix_timestamp;
         community.is_active = true;
+        community.requires_approval = requires_approval;
         community.bump = ctx.bumps.community;
         
         msg!("Community '{}' created by {}", community.name, community.authority);
+        msg!("Requires approval: {}", requires_approval);
         Ok(())
     }
 
@@ -588,12 +707,22 @@ pub mod voting_system {
         correct_answer: Option<u8>,
         deadline_hours: u32,
         quorum_required: u64,
+        quorum_percentage: Option<u8>,
+        use_percentage_quorum: bool,
     ) -> Result<()> {
         // === VALIDACIONES BÁSICAS ===
         require!(question.len() > 0 && question.len() <= 200, VotingSystemError::QuestionTooLong);
         require!(options.len() >= 2 && options.len() <= 4, VotingSystemError::InvalidOptionsCount);
         require!(deadline_hours >= 1 && deadline_hours <= 168, VotingSystemError::InvalidDeadline); // 1 hora a 1 semana
-        require!(quorum_required > 0, VotingSystemError::InvalidQuorum);
+        
+        // Validaciones de quorum
+        if use_percentage_quorum {
+            require!(quorum_percentage.is_some(), VotingSystemError::MissingQuorumPercentage);
+            let percentage = quorum_percentage.unwrap();
+            require!(percentage > 0 && percentage <= 100, VotingSystemError::InvalidQuorumPercentage);
+        } else {
+            require!(quorum_required > 0, VotingSystemError::InvalidQuorum);
+        }
         
         // Validar longitud de cada opción
         for option in &options {
@@ -649,6 +778,8 @@ pub mod voting_system {
         vote.results = vec![0; options.len()];
         vote.total_votes = 0;
         vote.quorum_required = quorum_required;
+        vote.quorum_percentage = quorum_percentage;
+        vote.use_percentage_quorum = use_percentage_quorum;
         vote.deadline = clock.unix_timestamp + (deadline_hours as i64 * 3600);
         vote.status = VoteStatus::Active;
         vote.fee_per_vote = voting_fee;
@@ -668,7 +799,12 @@ pub mod voting_system {
         msg!("Community: {}", community.name);
         msg!("Fee collected: {} lamports (Tier: {:?})", voting_fee, fee_tier);
         msg!("Deadline: {} hours from now", deadline_hours);
-        msg!("Quorum required: {}", quorum_required);
+        
+        if use_percentage_quorum {
+            msg!("Quorum: {}% of members", quorum_percentage.unwrap());
+        } else {
+            msg!("Quorum: {} absolute votes", quorum_required);
+        }
         
         Ok(())
     }
@@ -891,6 +1027,9 @@ pub mod voting_system {
     pub fn join_community(ctx: Context<JoinCommunity>) -> Result<()> {
         // === VALIDACIONES ===
         require!(ctx.accounts.community.is_active, VotingSystemError::CommunityInactive);
+        
+        // Verificar si la comunidad requiere aprobación
+        require!(!ctx.accounts.community.requires_approval, VotingSystemError::CommunityRequiresApproval);
         
         // Verificar que el usuario no sea ya miembro (PDA existe = ya es miembro)
         // Esta validación se hace automáticamente por Anchor al intentar crear PDA existente
@@ -1236,6 +1375,74 @@ pub struct AssignModerator<'info> {
     pub system_program: Program<'info, System>,
 }
 
+// === ESTRUCTURAS CONTEXT PARA SISTEMA DE CATEGORÍAS ===
+
+#[derive(Accounts)]
+#[instruction(name: String)] // Necesario para usar name en seeds
+pub struct CreateCustomCategory<'info> {
+    #[account(
+        init,
+        seeds = [b"custom_category", community.key().as_ref(), name.as_bytes()],
+        bump,
+        space = 8 + CustomCategory::LEN,
+        payer = admin
+    )]
+    pub custom_category: Account<'info, CustomCategory>,
+    
+    pub community: Account<'info, Community>,
+    
+    #[account(
+        constraint = admin_membership.is_admin() @ VotingSystemError::InsufficientPermissions,
+        constraint = admin_membership.community == community.key() @ VotingSystemError::InvalidCommunity
+    )]
+    pub admin_membership: Account<'info, Membership>,
+    
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(category: VotingCategory)] // Necesario para usar category en seeds
+pub struct SubscribeToCategory<'info> {
+    #[account(
+        init,
+        seeds = [b"subscription", user.key().as_ref(), &[category.to_u8()]],
+        bump,
+        space = 8 + CategorySubscription::LEN,
+        payer = subscriber
+    )]
+    pub subscription: Account<'info, CategorySubscription>,
+    
+    pub user: Account<'info, User>,
+    
+    #[account(mut)]
+    pub subscriber: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UnsubscribeFromCategory<'info> {
+    #[account(
+        mut,
+        constraint = subscription.user == subscriber.key() @ VotingSystemError::InvalidUser
+    )]
+    pub subscription: Account<'info, CategorySubscription>,
+    
+    #[account(mut)]
+    pub subscriber: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct GetCommunitiesByCategory<'info> {
+    #[account(
+        constraint = community.is_active @ VotingSystemError::CommunityInactive
+    )]
+    pub community: Account<'info, Community>,
+}
+
 #[derive(Accounts)]
 pub struct BanUser<'info> {
     #[account(
@@ -1511,6 +1718,105 @@ pub struct ReviewAppeal<'info> {
     #[account(
         init,
         seeds = [b"moderation_log", appeal.community.as_ref(), admin_membership.user.as_ref()],
+        bump,
+        space = 8 + ModerationLog::LEN,
+        payer = admin
+    )]
+    pub moderation_log: Account<'info, ModerationLog>,
+    
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+// ESTRUCTURAS PARA SISTEMA DE APROBACIÓN DE MIEMBROS
+
+#[derive(Accounts)]
+pub struct RequestMembership<'info> {
+    #[account(
+        init,
+        seeds = [b"membership_request", community.key().as_ref(), requester.key().as_ref()],
+        bump,
+        space = 8 + MembershipRequest::LEN,
+        payer = requester
+    )]
+    pub membership_request: Account<'info, MembershipRequest>,
+    
+    #[account(
+        constraint = community.is_active @ VotingSystemError::CommunityInactive
+    )]
+    pub community: Account<'info, Community>,
+    
+    #[account(
+        constraint = user.wallet == requester.key() @ VotingSystemError::InvalidUser
+    )]
+    pub user: Account<'info, User>,
+    
+    #[account(mut)]
+    pub requester: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ApproveMembership<'info> {
+    #[account(
+        mut,
+        constraint = membership_request.status == MembershipRequestStatus::Pending @ VotingSystemError::RequestNotPending
+    )]
+    pub membership_request: Account<'info, MembershipRequest>,
+    
+    #[account(
+        init,
+        seeds = [b"membership", community.key().as_ref(), membership_request.user.as_ref()],
+        bump,
+        space = 8 + Membership::LEN,
+        payer = admin
+    )]
+    pub membership: Account<'info, Membership>,
+    
+    #[account(mut)]
+    pub community: Account<'info, Community>,
+    
+    #[account(
+        constraint = admin_membership.is_admin() @ VotingSystemError::InsufficientPermissions,
+        constraint = admin_membership.community == community.key() @ VotingSystemError::InvalidCommunity
+    )]
+    pub admin_membership: Account<'info, Membership>,
+    
+    #[account(
+        init,
+        seeds = [b"moderation_log", community.key().as_ref(), admin_membership.user.as_ref()],
+        bump,
+        space = 8 + ModerationLog::LEN,
+        payer = admin
+    )]
+    pub moderation_log: Account<'info, ModerationLog>,
+    
+    #[account(mut)]
+    pub admin: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RejectMembership<'info> {
+    #[account(
+        mut,
+        constraint = membership_request.status == MembershipRequestStatus::Pending @ VotingSystemError::RequestNotPending
+    )]
+    pub membership_request: Account<'info, MembershipRequest>,
+    
+    #[account(
+        constraint = admin_membership.is_admin() @ VotingSystemError::InsufficientPermissions,
+        constraint = admin_membership.community == membership_request.community @ VotingSystemError::InvalidCommunity
+    )]
+    pub admin_membership: Account<'info, Membership>,
+    
+    #[account(
+        init,
+        seeds = [b"moderation_log", membership_request.community.as_ref(), admin_membership.user.as_ref()],
         bump,
         space = 8 + ModerationLog::LEN,
         payer = admin

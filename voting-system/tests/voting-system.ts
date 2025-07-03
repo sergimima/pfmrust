@@ -1000,4 +1000,289 @@ describe("🎯 VOTING SYSTEM - TESTS AVANZADOS", () => {
       console.log(`   Member: ${JSON.stringify(memberMembership.role)}`);
     });
   });
+  
+  describe("🔐 Sistema de Aprobación de Miembros", () => {
+    let approvalCommunityPda: PublicKey;
+    let user3: Keypair;
+    let userPda3: PublicKey;
+    let membershipRequestPda: PublicKey;
+    let user3MembershipPda: PublicKey;
+    
+    before("🛠️ Setup aprobación tests", async () => {
+      user3 = Keypair.generate();
+      await provider.connection.requestAirdrop(user3.publicKey, 2 * LAMPORTS_PER_SOL);
+      
+      // Generar PDAs para user3
+      [userPda3] = await PublicKey.findProgramAddress(
+        [Buffer.from("user"), user3.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      // Crear user3
+      await program.methods
+        .createUser()
+        .accounts({
+          user: userPda3,
+          wallet: user3.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([user3])
+        .rpc();
+      
+      // Crear comunidad que REQUIERE aprobación
+      [approvalCommunityPda] = await PublicKey.findProgramAddress(
+        [Buffer.from("community"), admin.publicKey.toBuffer(), Buffer.from("ApprovalCommunity")],
+        program.programId
+      );
+      
+      await program.methods
+        .createCommunity(
+          "ApprovalCommunity",
+          1, // Gaming category
+          60, // 60% quorum
+          true // requires_approval = true
+        )
+        .accounts({
+          community: approvalCommunityPda,
+          authority: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([admin])
+        .rpc();
+      
+      // Admin se une a la comunidad (bypasa aprobación)
+      const [adminApprovalMembershipPda] = await PublicKey.findProgramAddress(
+        [Buffer.from("membership"), approvalCommunityPda.toBuffer(), admin.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      await program.methods
+        .joinCommunity()
+        .accounts({
+          membership: adminApprovalMembershipPda,
+          community: approvalCommunityPda,
+          user: userPdaAdmin,
+          member: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([admin])
+        .rpc();
+      
+      // Generar PDAs para membership request
+      [membershipRequestPda] = await PublicKey.findProgramAddress(
+        [Buffer.from("membership_request"), approvalCommunityPda.toBuffer(), user3.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      [user3MembershipPda] = await PublicKey.findProgramAddress(
+        [Buffer.from("membership"), approvalCommunityPda.toBuffer(), user3.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      console.log("✅ Setup aprobación completado");
+    });
+    
+    it("❌ Debe fallar join_community() en comunidad que requiere aprobación", async () => {
+      try {
+        await program.methods
+          .joinCommunity()
+          .accounts({
+            membership: user3MembershipPda,
+            community: approvalCommunityPda,
+            user: userPda3,
+            member: user3.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([user3])
+          .rpc();
+        
+        throw new Error("Debería haber fallado");
+      } catch (error) {
+        expect(error.message).to.include("CommunityRequiresApproval");
+        console.log("✅ join_community() correctamente bloqueado");
+      }
+    });
+    
+    it("✅ Debe permitir solicitar membresía", async () => {
+      const message = "Hola, soy gamer y me gustaría unirme a esta comunidad.";
+      
+      await program.methods
+        .requestMembership(message)
+        .accounts({
+          membershipRequest: membershipRequestPda,
+          community: approvalCommunityPda,
+          user: userPda3,
+          requester: user3.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([user3])
+        .rpc();
+      
+      // Verificar solicitud creada
+      const request = await program.account.membershipRequest.fetch(membershipRequestPda);
+      expect(request.user.toString()).to.equal(user3.publicKey.toString());
+      expect(request.message).to.equal(message);
+      expect(request.status).to.deep.equal({ pending: {} });
+      
+      console.log("✅ Solicitud de membresía creada exitosamente");
+    });
+    
+    it("✅ Admin debe poder aprobar solicitud", async () => {
+      const adminNotes = "Perfil de gamer aprobado para la comunidad.";
+      
+      // PDAs necesarios
+      const [adminApprovalMembershipPda] = await PublicKey.findProgramAddress(
+        [Buffer.from("membership"), approvalCommunityPda.toBuffer(), admin.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      const [moderationLogPda] = await PublicKey.findProgramAddress(
+        [Buffer.from("moderation_log"), approvalCommunityPda.toBuffer(), admin.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      await program.methods
+        .approveMembership(adminNotes)
+        .accounts({
+          membershipRequest: membershipRequestPda,
+          membership: user3MembershipPda,
+          community: approvalCommunityPda,
+          adminMembership: adminApprovalMembershipPda,
+          moderationLog: moderationLogPda,
+          admin: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([admin])
+        .rpc();
+      
+      // Verificar solicitud aprobada
+      const request = await program.account.membershipRequest.fetch(membershipRequestPda);
+      expect(request.status).to.deep.equal({ approved: {} });
+      expect(request.adminNotes).to.equal(adminNotes);
+      
+      // Verificar membership creada
+      const membership = await program.account.membership.fetch(user3MembershipPda);
+      expect(membership.user.toString()).to.equal(user3.publicKey.toString());
+      expect(membership.role).to.deep.equal({ member: {} });
+      expect(membership.isActive).to.be.true;
+      
+      console.log("✅ Solicitud aprobada y membership creada exitosamente");
+    });
+    
+    it("✅ Debe poder rechazar solicitud", async () => {
+      // Crear otro usuario para rechazar
+      const user4 = Keypair.generate();
+      await provider.connection.requestAirdrop(user4.publicKey, 2 * LAMPORTS_PER_SOL);
+      
+      const [userPda4] = await PublicKey.findProgramAddress(
+        [Buffer.from("user"), user4.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      await program.methods
+        .createUser()
+        .accounts({
+          user: userPda4,
+          wallet: user4.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([user4])
+        .rpc();
+      
+      // Crear solicitud
+      const [membershipRequestPda4] = await PublicKey.findProgramAddress(
+        [Buffer.from("membership_request"), approvalCommunityPda.toBuffer(), user4.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      await program.methods
+        .requestMembership("Solicitud que será rechazada")
+        .accounts({
+          membershipRequest: membershipRequestPda4,
+          community: approvalCommunityPda,
+          user: userPda4,
+          requester: user4.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([user4])
+        .rpc();
+      
+      // Rechazar solicitud
+      const adminNotes = "Perfil no cumple con los requisitos de la comunidad.";
+      
+      const [adminApprovalMembershipPda] = await PublicKey.findProgramAddress(
+        [Buffer.from("membership"), approvalCommunityPda.toBuffer(), admin.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      const [moderationLogPda4] = await PublicKey.findProgramAddress(
+        [Buffer.from("moderation_log"), approvalCommunityPda.toBuffer(), admin.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      await program.methods
+        .rejectMembership(adminNotes)
+        .accounts({
+          membershipRequest: membershipRequestPda4,
+          adminMembership: adminApprovalMembershipPda,
+          moderationLog: moderationLogPda4,
+          admin: admin.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([admin])
+        .rpc();
+      
+      // Verificar solicitud rechazada
+      const request = await program.account.membershipRequest.fetch(membershipRequestPda4);
+      expect(request.status).to.deep.equal({ rejected: {} });
+      expect(request.adminNotes).to.equal(adminNotes);
+      
+      console.log("✅ Solicitud rechazada exitosamente");
+    });
+    
+    it("❌ Debe fallar si mensaje muy largo", async () => {
+      const longMessage = "a".repeat(301); // 301 caracteres
+      const user5 = Keypair.generate();
+      await provider.connection.requestAirdrop(user5.publicKey, 2 * LAMPORTS_PER_SOL);
+      
+      const [userPda5] = await PublicKey.findProgramAddress(
+        [Buffer.from("user"), user5.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      await program.methods
+        .createUser()
+        .accounts({
+          user: userPda5,
+          wallet: user5.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([user5])
+        .rpc();
+      
+      const [membershipRequestPda5] = await PublicKey.findProgramAddress(
+        [Buffer.from("membership_request"), approvalCommunityPda.toBuffer(), user5.publicKey.toBuffer()],
+        program.programId
+      );
+      
+      try {
+        await program.methods
+          .requestMembership(longMessage)
+          .accounts({
+            membershipRequest: membershipRequestPda5,
+            community: approvalCommunityPda,
+            user: userPda5,
+            requester: user5.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .signers([user5])
+          .rpc();
+        
+        throw new Error("Debería haber fallado");
+      } catch (error) {
+        expect(error.message).to.include("RequestMessageTooLong");
+        console.log("✅ Mensaje largo correctamente rechazado");
+      }
+    });
+  });
 });
