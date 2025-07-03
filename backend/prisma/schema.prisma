@@ -1,0 +1,214 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Communities cache from Solana
+model Community {
+  id                    BigInt   @id
+  name                  String   @db.VarChar(64)
+  adminPubkey          String   @map("admin_pubkey") @db.VarChar(44)
+  memberCount          Int      @map("member_count") @default(0)
+  votingFee            BigInt   @map("voting_fee")
+  totalFeesCollected   BigInt   @map("total_fees_collected") @default(0)
+  isActive             Boolean  @map("is_active") @default(true)
+  lastSynced           DateTime @map("last_synced") @default(now())
+  createdAt            DateTime @map("created_at") @default(now())
+  
+  // Relations
+  metadata             CommunityMetadata?
+  votings              Voting[]
+  analytics            CommunityAnalytics[]
+
+  @@map("communities_cache")
+}
+
+// Extended community metadata
+model CommunityMetadata {
+  id              BigInt   @id @default(autoincrement())
+  communityId     BigInt   @unique @map("community_id")
+  description     String?
+  rules           String?
+  avatarUrl       String?  @map("avatar_url")
+  bannerUrl       String?  @map("banner_url")
+  website         String?
+  socialLinks     Json?    @map("social_links")
+  tags            String[]
+  createdAt       DateTime @map("created_at") @default(now())
+  updatedAt       DateTime @map("updated_at") @updatedAt
+
+  // Relations
+  community       Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@map("communities_metadata")
+}
+
+// Votings cache from Solana
+model Voting {
+  id                BigInt      @id
+  communityId       BigInt      @map("community_id")
+  title             String      @db.VarChar(128)
+  creatorPubkey     String      @map("creator_pubkey") @db.VarChar(44)
+  deadline          DateTime
+  totalVotes        Int         @map("total_votes") @default(0)
+  status            VotingStatus
+  votingType        VotingType  @map("voting_type")
+  quorumEnabled     Boolean     @map("quorum_enabled") @default(false)
+  quorumThreshold   Int?        @map("quorum_threshold")
+  lastSynced        DateTime    @map("last_synced") @default(now())
+  createdAt         DateTime    @map("created_at") @default(now())
+
+  // Relations
+  community         Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  metadata          VotingMetadata?
+  
+  @@map("votings_cache")
+}
+
+// Extended voting metadata
+model VotingMetadata {
+  id              BigInt   @id @default(autoincrement())
+  votingId        BigInt   @unique @map("voting_id")
+  description     String?
+  category        String   @db.VarChar(50)
+  tags            String[]
+  creatorNotes    String?  @map("creator_notes")
+  featured        Boolean  @default(false)
+  viewCount       Int      @map("view_count") @default(0)
+  shareCount      Int      @map("share_count") @default(0)
+  createdAt       DateTime @map("created_at") @default(now())
+  updatedAt       DateTime @map("updated_at") @updatedAt
+
+  // Relations
+  voting          Voting @relation(fields: [votingId], references: [id], onDelete: Cascade)
+
+  @@map("votings_metadata")
+}
+
+// User reputation tracking
+model UserReputation {
+  id                    BigInt   @id @default(autoincrement())
+  userPubkey           String   @unique @map("user_pubkey") @db.VarChar(44)
+  participationPoints  Int      @map("participation_points") @default(0)
+  creationPoints       Int      @map("creation_points") @default(0)
+  accuracyPoints       Int      @map("accuracy_points") @default(0)
+  trustPoints          Int      @map("trust_points") @default(0)
+  totalScore           Int      @map("total_score") @default(0)
+  votingWeight         Int      @map("voting_weight") @default(1)
+  lastUpdated          DateTime @map("last_updated") @default(now())
+  createdAt            DateTime @map("created_at") @default(now())
+
+  // Relations
+  history              UserReputationHistory[]
+
+  @@map("user_reputation")
+}
+
+// Daily reputation history
+model UserReputationHistory {
+  id                    BigInt   @id @default(autoincrement())
+  userPubkey           String   @map("user_pubkey") @db.VarChar(44)
+  date                 DateTime @db.Date
+  participationPoints  Int      @map("participation_points") @default(0)
+  creationPoints       Int      @map("creation_points") @default(0)
+  accuracyPoints       Int      @map("accuracy_points") @default(0)
+  trustPoints          Int      @map("trust_points") @default(0)
+  totalScore           Int      @map("total_score") @default(0)
+  rankGlobal           Int?     @map("rank_global")
+  rankCommunities      Json?    @map("rank_communities")
+
+  // Relations
+  user                 UserReputation @relation(fields: [userPubkey], references: [userPubkey], onDelete: Cascade)
+
+  @@unique([userPubkey, date])
+  @@map("user_reputation_history")
+}
+
+// Daily community analytics
+model CommunityAnalytics {
+  id                    BigInt   @id @default(autoincrement())
+  communityId          BigInt   @map("community_id")
+  date                 DateTime @db.Date
+  dailyVotes           Int      @map("daily_votes") @default(0)
+  dailyNewMembers      Int      @map("daily_new_members") @default(0)
+  activeMembers        Int      @map("active_members") @default(0)
+  trendingCategories   Json?    @map("trending_categories")
+  engagementScore      Decimal? @map("engagement_score") @db.Decimal(5,2)
+
+  // Relations
+  community            Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, date])
+  @@map("community_analytics")
+}
+
+// Global daily statistics
+model DailyStats {
+  date                 DateTime @id @db.Date
+  totalCommunities     Int      @map("total_communities") @default(0)
+  totalVotings         Int      @map("total_votings") @default(0)
+  totalVotes           Int      @map("total_votes") @default(0)
+  totalUsers           Int      @map("total_users") @default(0)
+  feesCollected        BigInt   @map("fees_collected") @default(0)
+  activeUsers          Int      @map("active_users") @default(0)
+
+  @@map("daily_stats")
+}
+
+// Voting categories
+model VotingCategory {
+  id                   Int      @id @default(autoincrement())
+  name                 String   @unique @db.VarChar(50)
+  description          String?
+  color                String?  @db.VarChar(7) // Hex color
+  icon                 String?  @db.VarChar(50)
+  parentCategoryId     Int?     @map("parent_category_id")
+
+  // Self relation for subcategories
+  parentCategory       VotingCategory? @relation("CategoryHierarchy", fields: [parentCategoryId], references: [id])
+  subcategories        VotingCategory[] @relation("CategoryHierarchy")
+
+  @@map("voting_categories")
+}
+
+// User notifications
+model UserNotification {
+  id                   BigInt         @id @default(autoincrement())
+  userPubkey          String         @map("user_pubkey") @db.VarChar(44)
+  type                NotificationType
+  title               String         @db.VarChar(255)
+  message             String?
+  data                Json?          // Additional data specific to notification type
+  read                Boolean        @default(false)
+  createdAt           DateTime       @map("created_at") @default(now())
+
+  @@index([userPubkey])
+  @@map("user_notifications")
+}
+
+// Enums
+enum VotingStatus {
+  ACTIVE
+  CLOSED
+  FAILED
+}
+
+enum VotingType {
+  OPINION
+  KNOWLEDGE
+}
+
+enum NotificationType {
+  NEW_VOTING
+  VOTING_ENDED
+  REWARD_EARNED
+  COMMUNITY_JOINED
+  ROLE_ASSIGNED
+}

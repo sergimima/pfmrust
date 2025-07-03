@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+target/
+.anchor/
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+
+# Temporary files
+tmp/
+temp/
+*.bak
+
+# Coverage reports
+coverage/
+
+# Next.js
+.next/
+
+# Vercel
+.vercel/
+
+# TypeScript
+*.tsbuildinfo
+
+# Solana
+test-ledger/
+keypairs/
+*.so
+
+# Rust
+Cargo.lock
+*.pdb

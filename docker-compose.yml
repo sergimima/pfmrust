@@ -1,0 +1,88 @@
+services:
+  # Solana Development Environment
+  solana-dev:
+    image: solanalabs/solana:stable
+    container_name: voting-system-solana
+    volumes:
+      - solana-ledger:/ledger
+    command: >
+      sh -c "
+        solana config set --url http://localhost:8899 &&
+        solana-test-validator
+          --ledger /ledger
+          --bind-address 0.0.0.0
+          --rpc-bind-address 0.0.0.0
+          --log
+      "
+    ports:
+      - "8899:8899"   # Solana RPC
+      - "8900:8900"   # Solana WebSocket
+      - "9900:9900"   # Solana Faucet
+    healthcheck:
+      test: ["CMD", "solana", "cluster-version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - voting-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: voting-system-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: voting_system
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/prisma/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - voting-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: voting-system-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - voting-network
+
+  # Development Tools (Optional)
+  adminer:
+    image: adminer:latest
+    container_name: voting-system-adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - voting-network
+
+volumes:
+  postgres-data:
+  redis-data:
+  solana-ledger:
+
+networks:
+  voting-network:
+    driver: bridge
