@@ -59,24 +59,38 @@ export default function AdminDashboard() {
     },
     {
       id: '2',
-      title: 'Moderation',
+      title: 'Moderation Panel',
       icon: '⚖️',
       href: '/admin/moderation',
       description: 'Review reports and appeals'
     },
     {
       id: '3',
-      title: 'Analytics',
-      icon: '📈',
-      href: '/admin/analytics',
-      description: 'View detailed metrics'
+      title: 'Admin Tools',
+      icon: '🛠️',
+      href: '/admin/tools',
+      description: 'User management, fees, system config'
     },
     {
       id: '4',
-      title: 'Settings',
-      icon: '⚙️',
-      href: '/admin/settings',
-      description: 'System configuration'
+      title: 'Analytics Dashboard',
+      icon: '📈',
+      href: '/admin/analytics',
+      description: 'View detailed metrics and stats'
+    },
+    {
+      id: '5',
+      title: 'User Management',
+      icon: '👥',
+      href: '/admin/tools?tab=users',
+      description: 'Ban/unban users, assign moderators'
+    },
+    {
+      id: '6',
+      title: 'Fee Management',
+      icon: '💰',
+      href: '/admin/tools?tab=fees',
+      description: 'Withdraw fees, distribute rewards'
     },
   ];
 
@@ -183,10 +197,52 @@ export default function AdminDashboard() {
         />
       </div>
 
+      {/* Quick Access Cards */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Access</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {quickActions.map((action) => (
+            <Link
+              key={action.id}
+              href={action.href}
+              className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="text-2xl">{action.icon}</div>
+                <div>
+                  <h3 className="font-medium text-gray-900">{action.title}</h3>
+                  <p className="text-sm text-gray-600">{action.description}</p>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       {/* Activity and Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ActivityFeed activities={recentActivities} />
-        <QuickActions actions={quickActions} />
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">System Status</h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">System Health</span>
+              <span className="font-medium text-green-600">98.2% ✅</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">Uptime</span>
+              <span className="font-medium text-green-600">99.98%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">Active Validators</span>
+              <span className="font-medium text-blue-600">1/1</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-600">Last Update</span>
+              <span className="font-medium text-gray-600">{new Date().toLocaleString()}</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

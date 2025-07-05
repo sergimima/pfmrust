@@ -204,7 +204,7 @@
 - [x] **4.1.4** Panel de moderación
 - [x] **4.1.5** Herramientas admin
 - [x] **4.1.6** Estadísticas y analytics
-- [ ] **4.1.7** Tests frontend admin
+- [x] **4.1.7** Tests frontend admin
 
 ### 4.2 Frontend Usuarios (Semana 14-16)
 - [ ] **4.2.1** Interfaz participación

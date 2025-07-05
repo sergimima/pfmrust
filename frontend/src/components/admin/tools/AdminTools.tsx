@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import UserManagement from './UserManagement';
 import FeeManagement from './FeeManagement';
 import SystemConfig from './SystemConfig';
@@ -18,7 +19,15 @@ const tabs = [
 ];
 
 export default function AdminTools({ activeTab = 'users' }: AdminToolsProps) {
-  const [currentTab, setCurrentTab] = useState(activeTab);
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const [currentTab, setCurrentTab] = useState(tabFromUrl || activeTab);
+  
+  useEffect(() => {
+    if (tabFromUrl && tabs.find(tab => tab.id === tabFromUrl)) {
+      setCurrentTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
 
   const renderTabContent = () => {
     switch (currentTab) {

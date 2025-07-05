@@ -50,6 +50,12 @@ export default function AdminLayout({
                 ⚖️ Moderation
               </Link>
               <Link 
+                href="/admin/tools" 
+                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+              >
+                🛠️ Tools
+              </Link>
+              <Link 
                 href="/admin/analytics" 
                 className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
               >
