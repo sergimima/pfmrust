@@ -18,12 +18,18 @@ import { initializeJobs, scheduleRecurringJobs } from './jobs';
 import routes from './routes';
 import EventListenerManager from './listeners';
 import type { EventListenerConfig } from './listeners';
+import { createServer } from 'http';
+import { initializeWebSocketService } from './services/websocketService';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Create HTTP server
+const server = createServer(app);
+
 // Event Listener Manager
 let eventListenerManager: EventListenerManager | null = null;
+let websocketService: any = null;
 
 // Global middleware
 app.use(helmet());
@@ -77,6 +83,10 @@ async function startServer() {
       console.log('🚀 Job system initialized and scheduled');
     }
     
+    // Initialize WebSocket service
+    websocketService = initializeWebSocketService(server);
+    console.log('🔌 WebSocket service initialized');
+    
     // Test Solana connection
     const solanaConnected = await testSolanaConnection();
     if (!solanaConnected) {
@@ -86,17 +96,19 @@ async function startServer() {
       await initializeEventListeners();
     }
     
-    // Start Express server
-    const server = app.listen(PORT, () => {
+    // Start HTTP server with WebSocket support
+    server.listen(PORT, () => {
       console.log(`🎉 Server running on port ${PORT}`);
       console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
       console.log(`📍 API status: http://localhost:${PORT}/api/status`);
+      console.log(`🔌 WebSocket endpoint: ws://localhost:${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
     });
     
     // Graceful shutdown
     process.on('SIGTERM', async () => {
       console.log('🛑 SIGTERM received, shutting down gracefully...');
+      if (websocketService) await websocketService.shutdown();
       server.close(async () => {
         await shutdownEventListeners();
         await disconnectDatabase();
@@ -107,6 +119,7 @@ async function startServer() {
     
     process.on('SIGINT', async () => {
       console.log('🛑 SIGINT received, shutting down gracefully...');
+      if (websocketService) await websocketService.shutdown();
       server.close(async () => {
         await shutdownEventListeners();
         await disconnectDatabase();

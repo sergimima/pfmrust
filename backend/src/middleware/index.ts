@@ -1,5 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { errorResponse } from '../utils/helpers';
+import { analyticsTracking, userAnalytics, performanceAnalytics } from './analytics';
+
+// Export analytics middleware
+export { analyticsTracking, userAnalytics, performanceAnalytics };
 
 // Global error handler
 export function errorHandler(

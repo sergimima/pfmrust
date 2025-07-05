@@ -85,6 +85,132 @@ export class AnalyticsService {
   }
 
   /**
+   * Record endpoint metrics for performance analysis
+   */
+  async recordEndpointMetrics(metrics: any): Promise<void> {
+    try {
+      if (!this.redis) return;
+
+      const key = `endpoint_metrics:${metrics.endpoint}:${Date.now()}`;
+      await this.redis.setEx(key, 3600, JSON.stringify(metrics)); // Keep for 1 hour
+      
+      // Update aggregated stats
+      const statsKey = `endpoint_stats:${metrics.endpoint}`;
+      const existingStats = await this.redis.get(statsKey);
+      
+      let stats = existingStats ? JSON.parse(existingStats) : {
+        totalRequests: 0,
+        totalResponseTime: 0,
+        successCount: 0,
+        errorCount: 0,
+        averageResponseTime: 0
+      };
+      
+      stats.totalRequests++;
+      stats.totalResponseTime += metrics.responseTime;
+      if (metrics.success) {
+        stats.successCount++;
+      } else {
+        stats.errorCount++;
+      }
+      stats.averageResponseTime = stats.totalResponseTime / stats.totalRequests;
+      
+      await this.redis.setEx(statsKey, 86400, JSON.stringify(stats)); // Keep for 24 hours
+    } catch (error) {
+      console.error('Error recording endpoint metrics:', error);
+    }
+  }
+
+  /**
+   * Update real-time metrics
+   */
+  async updateRealTimeMetrics(endpoint: string, statusCode: number): Promise<void> {
+    try {
+      if (!this.redis) return;
+
+      const key = 'realtime_counters';
+      const counters = await this.redis.get(key);
+      
+      let data = counters ? JSON.parse(counters) : {
+        totalRequests: 0,
+        successfulRequests: 0,
+        errorRequests: 0,
+        lastActivity: new Date()
+      };
+      
+      data.totalRequests++;
+      if (statusCode >= 200 && statusCode < 400) {
+        data.successfulRequests++;
+      } else {
+        data.errorRequests++;
+      }
+      data.lastActivity = new Date();
+      
+      await this.redis.setEx(key, 300, JSON.stringify(data)); // Keep for 5 minutes
+    } catch (error) {
+      console.error('Error updating real-time metrics:', error);
+    }
+  }
+
+  /**
+   * Record specific events
+   */
+  async recordEvent(event: any): Promise<void> {
+    try {
+      if (!this.redis) return;
+
+      const key = `event:${event.type}:${Date.now()}`;
+      await this.redis.setEx(key, 86400, JSON.stringify(event)); // Keep for 24 hours
+      
+      // Update event counters
+      const counterKey = `event_counter:${event.type}`;
+      await this.redis.incr(counterKey);
+      await this.redis.expire(counterKey, 86400);
+    } catch (error) {
+      console.error('Error recording event:', error);
+    }
+  }
+
+  /**
+   * Record slow endpoints for performance monitoring
+   */
+  async recordSlowEndpoint(data: any): Promise<void> {
+    try {
+      if (!this.redis) return;
+
+      const key = `slow_endpoint:${Date.now()}`;
+      await this.redis.setEx(key, 86400, JSON.stringify(data)); // Keep for 24 hours
+      
+      // Add to slow endpoints list
+      const listKey = 'slow_endpoints_list';
+      await this.redis.lPush(listKey, JSON.stringify(data));
+      await this.redis.lTrim(listKey, 0, 99); // Keep only last 100
+      await this.redis.expire(listKey, 86400);
+    } catch (error) {
+      console.error('Error recording slow endpoint:', error);
+    }
+  }
+
+  /**
+   * Record user activity
+   */
+  async recordUserActivity(activity: any): Promise<void> {
+    try {
+      if (!this.redis) return;
+
+      const key = `user_activity:${activity.userId}:${Date.now()}`;
+      await this.redis.setEx(key, 86400, JSON.stringify(activity)); // Keep for 24 hours
+      
+      // Update user activity counter
+      const counterKey = `user_activity_counter:${activity.userId}`;
+      await this.redis.incr(counterKey);
+      await this.redis.expire(counterKey, 86400);
+    } catch (error) {
+      console.error('Error recording user activity:', error);
+    }
+  }
+
+  /**
    * Get comprehensive user analytics
    */
   async getUserAnalytics(userId: string): Promise<UserAnalytics | null> {

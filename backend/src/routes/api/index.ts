@@ -5,6 +5,7 @@ import communitiesRouter from './communities';
 import votesRouter from './votes';
 import statsRouter from './stats';
 import searchRouter from './search';
+import websocketsRouter from './websockets';
 
 const router = Router();
 
@@ -14,6 +15,7 @@ router.use('/communities', communitiesRouter);
 router.use('/votes', votesRouter);
 router.use('/stats', statsRouter);
 router.use('/search', searchRouter);
+router.use('/websockets', websocketsRouter);
 
 // Ruta de información de la API
 router.get('/', (req, res) => {
@@ -26,7 +28,12 @@ router.get('/', (req, res) => {
       communities: '/api/communities',
       votes: '/api/votes',
       stats: '/api/stats',
-      search: '/api/search'
+      search: '/api/search',
+      websockets: '/api/websockets'
+    },
+    realtime: {
+      websocket: 'ws://localhost:3001',
+      socketio: 'http://localhost:3001'
     },
     documentation: '/api/docs',
     status: 'operational'
