@@ -80,22 +80,49 @@ export interface PaginatedResponse<T> {
   };
 }
 
-export function createPaginatedResponse<T>(
-  items: T[],
-  total: number,
-  { page, limit }: PaginationParams
-): PaginatedResponse<T> {
-  const totalPages = Math.ceil(total / limit);
+// API response helper with metadata
+export function apiResponse<T>(
+  data: T,
+  message?: string,
+  meta?: any,
+  errorCode?: string
+): any {
+  if (errorCode) {
+    return {
+      success: false,
+      error: message || 'An error occurred',
+      errorCode,
+      timestamp: new Date().toISOString(),
+    };
+  }
   
   return {
-    items,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages,
-      hasNext: page < totalPages,
-      hasPrev: page > 1,
-    },
+    success: true,
+    data,
+    message: message || 'Request successful',
+    meta,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+// Handle async middleware
+export function handleAsync(
+  fn: (req: Request, res: Response) => Promise<any>
+) {
+  return (req: Request, res: Response, next: any) => {
+    Promise.resolve(fn(req, res)).catch(next);
+  };
+}
+
+// Validate pagination parameters
+export function validatePagination(page: number, limit: number) {
+  const validPage = Math.max(1, parseInt(page.toString()) || 1);
+  const validLimit = Math.min(100, Math.max(1, parseInt(limit.toString()) || 20));
+  const skip = (validPage - 1) * validLimit;
+  
+  return {
+    page: validPage,
+    limit: validLimit,
+    skip
   };
 }

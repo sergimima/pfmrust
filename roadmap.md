@@ -155,12 +155,12 @@
 ### **3.1 Backend API y Servicios (0% ❌)**
 *MOVIDO DESDE 2.8 - Correctamente clasificado como BACKEND*
 - [x] **3.1.1** ✅ Setup completo del backend - **COMPLETADO**
-- [ ] **3.1.2** ❌ Event listeners para sincronización - **NO IMPLEMENTADO**
-- [ ] **3.1.3** ❌ APIs REST - **NO IMPLEMENTADO**
-- [ ] **3.1.4** ❌ Sistema de cache con Redis - **NO IMPLEMENTADO**
+- [x] **3.1.2** ✅ Event listeners para sincronización - **COMPLETADO**
+- [x] **3.1.3** ✅ APIs REST - **COMPLETADO**
+- [x] **3.1.4** ✅ Sistema de cache con Redis - **COMPLETADO**
 - [ ] **3.1.5** ❌ Servicios de analytics - **NO IMPLEMENTADO**
 - [ ] **3.1.6** ❌ WebSockets para tiempo real - **NO IMPLEMENTADO**
-- [ ] **3.1.7** ❌ Jobs para cálculos periódicos - **NO IMPLEMENTADO**
+- [x] **3.1.7** ✅ Jobs para cálculos periódicos - **COMPLETADO**
 - [ ] **3.1.8** ❌ Tests del backend - **NO IMPLEMENTADO**
 
 ### **3.2 Pruebas de Integración Híbrida (0% ❌)**

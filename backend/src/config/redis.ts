@@ -1,11 +1,12 @@
-import Redis from 'redis';
+import { createClient } from 'redis';
+import type { RedisClientType } from 'redis';
 
 // Redis client instance
-let redisClient: Redis.RedisClientType | null = null;
+let redisClient: RedisClientType | null = null;
 
 export async function connectRedis() {
   try {
-    redisClient = Redis.createClient({
+    redisClient = createClient({
       url: process.env.REDIS_URL || 'redis://localhost:6379',
     });
 
