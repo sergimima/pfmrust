@@ -1,6 +1,6 @@
 'use client';
 
-import { FC, useState } from 'react';
+import { FC, useState, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton, WalletDisconnectButton } from '@solana/wallet-adapter-react-ui';
 import { formatWalletAddress, copyToClipboard } from '@/lib/solana';
@@ -8,6 +8,20 @@ import { useSolana } from '@/components/providers/SolanaProvider';
 import { ClipboardIcon, CheckIcon } from '@heroicons/react/24/outline';
 
 export const WalletButton: FC = () => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="bg-gray-200 animate-pulse rounded-lg px-4 py-2">
+        <span className="text-transparent">Loading...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center space-x-2">
       <WalletMultiButton className="!bg-solana-purple hover:!bg-purple-700 !text-white !font-medium !py-2 !px-4 !rounded-lg !transition-colors" />
@@ -19,6 +33,11 @@ export const WalletInfo: FC = () => {
   const { publicKey, connected, wallet } = useWallet();
   const { network, isConnected } = useSolana();
   const [copied, setCopied] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleCopyAddress = async () => {
     if (publicKey) {
@@ -30,7 +49,7 @@ export const WalletInfo: FC = () => {
     }
   };
 
-  if (!connected || !publicKey) {
+  if (!mounted || !connected || !publicKey) {
     return null;
   }
 
@@ -113,6 +132,20 @@ export const WalletInfo: FC = () => {
 export const WalletStatus: FC = () => {
   const { connected, connecting, disconnecting } = useWallet();
   const { isConnected } = useSolana();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="flex items-center space-x-2">
+        <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
+        <span className="text-sm font-medium text-gray-500">Loading...</span>
+      </div>
+    );
+  }
 
   let status = 'Disconnected';
   let statusColor = 'text-red-600';

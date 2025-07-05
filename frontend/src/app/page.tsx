@@ -3,6 +3,8 @@
 import { WalletButton, WalletInfo, WalletStatus } from '@/components/ui/WalletComponents';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useSolana } from '@/components/providers/SolanaProvider';
+import ClientOnly from '@/components/ui/ClientOnly';
+import Link from 'next/link';
 
 export default function HomePage() {
   const { connected } = useWallet();
@@ -21,8 +23,12 @@ export default function HomePage() {
               <span className="text-sm text-gray-500 capitalize">({network})</span>
             </div>
             <div className="flex items-center space-x-4">
-              <WalletStatus />
-              <WalletButton />
+              <ClientOnly fallback={<div className="w-16 h-6 bg-gray-200 animate-pulse rounded"></div>}>
+                <WalletStatus />
+              </ClientOnly>
+              <ClientOnly fallback={<div className="w-24 h-8 bg-gray-200 animate-pulse rounded"></div>}>
+                <WalletButton />
+              </ClientOnly>
             </div>
           </div>
         </div>
@@ -40,11 +46,13 @@ export default function HomePage() {
         </div>
 
         {/* Wallet Info Section */}
-        {connected && (
-          <div className="max-w-md mx-auto mb-16">
-            <WalletInfo />
-          </div>
-        )}
+        <ClientOnly>
+          {connected && (
+            <div className="max-w-md mx-auto mb-16">
+              <WalletInfo />
+            </div>
+          )}
+        </ClientOnly>
 
         {/* Features Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
@@ -101,9 +109,9 @@ export default function HomePage() {
         <div className="text-center space-x-4">
           {connected ? (
             <>
-              <button className="btn-primary">
-                🏛️ Browse Communities
-              </button>
+              <Link href="/admin" className="btn-primary">
+                🏛️ Admin Panel
+              </Link>
               <button className="btn-secondary">
                 📊 View Dashboard
               </button>
@@ -113,25 +121,32 @@ export default function HomePage() {
               <button className="btn-secondary">
                 👆 Connect wallet to get started
               </button>
-              <button className="btn-secondary">
-                📖 Learn More
-              </button>
+              <Link href="/admin" className="btn-secondary">
+                🔐 Admin Panel
+              </Link>
             </>
           )}
         </div>
 
         {/* Status */}
         <div className="mt-16 text-center">
-          <div className="inline-flex items-center space-x-2 bg-green-100 text-green-800 px-4 py-2 rounded-full">
-            <div className={`w-2 h-2 rounded-full animate-pulse ${
-              connected && isConnected ? 'bg-green-500' : 'bg-yellow-500'
-            }`}></div>
-            <span className="text-sm font-medium">
-              {connected && isConnected ? 'Fully Connected' : 
-               connected ? 'Wallet Connected' :
-               'System Online'}
-            </span>
-          </div>
+          <ClientOnly fallback={
+            <div className="inline-flex items-center space-x-2 bg-gray-100 px-4 py-2 rounded-full">
+              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+              <span className="text-sm font-medium text-gray-500">Loading...</span>
+            </div>
+          }>
+            <div className="inline-flex items-center space-x-2 bg-green-100 text-green-800 px-4 py-2 rounded-full">
+              <div className={`w-2 h-2 rounded-full animate-pulse ${
+                connected && isConnected ? 'bg-green-500' : 'bg-yellow-500'
+              }`}></div>
+              <span className="text-sm font-medium">
+                {connected && isConnected ? 'Fully Connected' : 
+                 connected ? 'Wallet Connected' :
+                 'System Online'}
+              </span>
+            </div>
+          </ClientOnly>
         </div>
       </div>
     </main>

@@ -199,9 +199,9 @@
 
 ### 4.1 Frontend Admin (Semana 12-14)
 - [x] **4.1.1** Setup Next.js + TypeScript
-- [ ] **4.1.2** Integración wallet Solana
-- [ ] **4.1.3** Dashboard de comunidades
-- [ ] **4.1.4** Panel de moderación
+- [x] **4.1.2** Integración wallet Solana
+- [x] **4.1.3** Dashboard de comunidades
+- [x] **4.1.4** Panel de moderación
 - [ ] **4.1.5** Herramientas admin
 - [ ] **4.1.6** Estadísticas y analytics
 - [ ] **4.1.7** Tests frontend admin
