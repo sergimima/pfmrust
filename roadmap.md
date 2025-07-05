@@ -207,8 +207,8 @@
 - [x] **4.1.7** Tests frontend admin
 
 ### 4.2 Frontend Usuarios (Semana 14-16)
-- [ ] **4.2.1** Interfaz participación
-- [ ] **4.2.2** Navegación por categorías
+- [x] **4.2.1** Interfaz participación
+- [x] **4.2.2** Navegación por categorías
 - [ ] **4.2.3** Creación de votaciones
 - [ ] **4.2.4** Visualización resultados
 - [ ] **4.2.5** Sistema de gamificación
