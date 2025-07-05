@@ -7,8 +7,6 @@ import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
-  BackpackWalletAdapter,
-  MathWalletAdapter,
 } from '@solana/wallet-adapter-wallets';
 import { clusterApiUrl } from '@solana/web3.js';
 
@@ -47,13 +45,12 @@ export const SolanaWalletProvider: FC<Props> = ({ children }) => {
     return defaultEndpoint;
   }, [network]);
 
-  // Configure wallets
+  // Configure wallets - Solo los que funcionan
   const wallets = useMemo(
     () => [
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter(),
-      new BackpackWalletAdapter(),
-      new MathWalletAdapter(),
+      // Removido BackpackWalletAdapter y MathWalletAdapter por problemas de compatibilidad
     ],
     []
   );
