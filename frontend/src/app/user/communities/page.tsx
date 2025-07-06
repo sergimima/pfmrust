@@ -310,8 +310,8 @@ export default function CommunitiesPage() {
                 Clear Filters
               </button>
             )}
-            <Link href="/user/voting/create" className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">
-              Create Voting
+            <Link href="/user/communities/create" className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">
+              Create Community
             </Link>
           </div>
         </div>

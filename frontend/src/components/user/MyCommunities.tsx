@@ -148,10 +148,10 @@ export default function MyCommunities() {
           </div>
           <div className="flex space-x-2">
             <Link
-              href="/user/voting/create"
+              href="/user/communities/create"
               className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
             >
-              + Create Voting
+              + Create Community
             </Link>
             <Link
               href="/user/communities"

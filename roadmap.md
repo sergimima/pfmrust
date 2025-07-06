@@ -219,7 +219,7 @@
 
  - [x] **4.2.8.1** /user/voting/create - Integrar componente CreateVoting
  - [x] **4.2.8.2** /user/voting/[id] - Página individual votación
- - [ ] **4.2.8.3** /user/communities/create - Formulario crear comunidad
+ - [x] **4.2.8.3** /user/communities/create - Formulario crear comunidad
  - [ ] **4.2.8.4** /user/communities/[id] - Página individual comunidad
  - [ ] **4.2.8.5** /user/communities/explore - Alias a /user/communities
  - [ ] **4.2.8.6** Corregir botones rotos en dashboards
