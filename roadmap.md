@@ -209,11 +209,27 @@
 ### 4.2 Frontend Usuarios (Semana 14-16)
 - [x] **4.2.1** Interfaz participación
 - [x] **4.2.2** Navegación por categorías
-- [ ] **4.2.3** Creación de votaciones
+- [x] **4.2.3** Creación de votaciones
 - [ ] **4.2.4** Visualización resultados
 - [ ] **4.2.5** Sistema de gamificación
 - [ ] **4.2.6** Responsive design
 - [ ] **4.2.7** Tests de usabilidad
+
+### 4.2.8 Páginas Faltantes Critical (Nueva - Post Auditoría)
+
+ - [x] **4.2.8.1** /user/voting/create - Integrar componente CreateVoting
+ - [x] **4.2.8.2** /user/voting/[id] - Página individual votación
+ - [ ] **4.2.8.3** /user/communities/create - Formulario crear comunidad
+ - [ ] **4.2.8.4** /user/communities/[id] - Página individual comunidad
+ - [ ] **4.2.8.5** /user/communities/explore - Alias a /user/communities
+ - [ ] **4.2.8.6** Corregir botones rotos en dashboards
+
+### 4.2.9 Mejoras UX Critical (Nueva)
+
+ - [ ] **4.2.9.1** Actualizar enlaces botones "Vote Now"
+ - [ ] **4.2.9.2** Actualizar enlaces botones "Create Voting"
+ - [ ] **4.2.9.3** Implementar navegación correcta entre páginas
+ - [ ] **4.2.9.4** Validation de rutas existentes
 
 ---
 

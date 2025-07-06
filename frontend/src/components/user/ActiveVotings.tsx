@@ -136,9 +136,12 @@ export default function ActiveVotings() {
 
               <div className="ml-4 flex flex-col space-y-2">
                 {!voting.userVoted ? (
-                  <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium">
+                  <Link
+                    href={`/user/voting/${voting.id}`}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm font-medium text-center block"
+                  >
                     Vote Now
-                  </button>
+                  </Link>
                 ) : (
                   <button className="bg-gray-100 text-gray-600 px-4 py-2 rounded-md cursor-not-allowed text-sm font-medium">
                     Already Voted

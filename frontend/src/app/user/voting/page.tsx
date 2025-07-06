@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import CategoryFilter from '@/components/user/categories/CategoryFilter';
 import SearchBar from '@/components/user/categories/SearchBar';
 import VotingGrid from '@/components/user/categories/VotingGrid';
@@ -337,9 +338,9 @@ export default function VotingPage() {
                 Clear Filters
               </button>
             )}
-            <button className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">
+            <Link href="/user/voting/create" className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">
               Create Voting
-            </button>
+            </Link>
           </div>
         </div>
       )}

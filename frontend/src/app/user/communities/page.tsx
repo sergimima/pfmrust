@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import CategoryFilter from '@/components/user/categories/CategoryFilter';
 import CommunityGrid from '@/components/user/categories/CommunityGrid';
 import SearchBar from '@/components/user/categories/SearchBar';
@@ -309,9 +310,9 @@ export default function CommunitiesPage() {
                 Clear Filters
               </button>
             )}
-            <button className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">
-              Create Community
-            </button>
+            <Link href="/user/voting/create" className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">
+              Create Voting
+            </Link>
           </div>
         </div>
       )}

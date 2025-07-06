@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
+import Link from 'next/link';
 import ParticipationOverview from '@/components/user/ParticipationOverview';
 import ActiveVotings from '@/components/user/ActiveVotings';
 import MyCommunities from '@/components/user/MyCommunities';
@@ -97,12 +98,12 @@ export default function UserDashboard() {
           Explore new communities, create votations, and earn reputation points.
         </p>
         <div className="flex justify-center space-x-4">
-          <button className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors">
+          <Link href="/user/communities" className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors">
             🏘️ Explore Communities
-          </button>
-          <button className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors">
+          </Link>
+          <Link href="/user/voting/create" className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors">
             ✨ Create Voting
-          </button>
+          </Link>
         </div>
       </div>
     </div>

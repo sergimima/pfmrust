@@ -132,7 +132,7 @@ export default function MyCommunities() {
             Join communities to participate in governance and earn reputation
           </p>
           <Link
-            href="/user/communities/explore"
+            href="/user/communities"
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
           >
             Explore Communities
@@ -148,13 +148,13 @@ export default function MyCommunities() {
           </div>
           <div className="flex space-x-2">
             <Link
-              href="/user/communities/create"
+              href="/user/voting/create"
               className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
             >
-              + Create Community
+              + Create Voting
             </Link>
             <Link
-              href="/user/communities/explore"
+              href="/user/communities"
               className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
             >
               🔍 Explore
