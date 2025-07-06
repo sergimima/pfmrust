@@ -98,7 +98,7 @@ export default function UserDashboard() {
           Explore new communities, create votations, and earn reputation points.
         </p>
         <div className="flex justify-center space-x-4">
-          <Link href="/user/communities" className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors">
+          <Link href="/user/communities/explore" className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors">
             🏘️ Explore Communities
           </Link>
           <Link href="/user/voting/create" className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors">

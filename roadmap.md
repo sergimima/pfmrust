@@ -220,16 +220,17 @@
  - [x] **4.2.8.1** /user/voting/create - Integrar componente CreateVoting
  - [x] **4.2.8.2** /user/voting/[id] - Página individual votación
  - [x] **4.2.8.3** /user/communities/create - Formulario crear comunidad
- - [ ] **4.2.8.4** /user/communities/[id] - Página individual comunidad
- - [ ] **4.2.8.5** /user/communities/explore - Alias a /user/communities
- - [ ] **4.2.8.6** Corregir botones rotos en dashboards
+ - [x] **4.2.8.4** /user/communities/[id] - Página individual comunidad
+ - [x] **4.2.8.5** /user/communities/explore - Alias a /user/communities
+ - [x] **4.2.8.6** Corregir botones rotos en dashboards
+ - [x] **4.2.8.7** Profile
 
 ### 4.2.9 Mejoras UX Critical (Nueva)
 
- - [ ] **4.2.9.1** Actualizar enlaces botones "Vote Now"
- - [ ] **4.2.9.2** Actualizar enlaces botones "Create Voting"
- - [ ] **4.2.9.3** Implementar navegación correcta entre páginas
- - [ ] **4.2.9.4** Validation de rutas existentes
+ - [x] **4.2.9.1** Actualizar enlaces botones "Vote Now"
+ - [x] **4.2.9.2** Actualizar enlaces botones "Create Voting"
+ - [x] **4.2.9.3** Implementar navegación correcta entre páginas
+ - [x] **4.2.9.4** Validation de rutas existentes
 
 ---
 

@@ -167,7 +167,7 @@ export default function ActiveVotings() {
             Join communities to participate in their governance decisions
           </p>
           <Link
-            href="/user/communities"
+            href="/user/communities/explore"
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
           >
             Explore Communities
