@@ -7,6 +7,8 @@ import CategoryFilter from '@/components/user/categories/CategoryFilter';
 import SearchBar from '@/components/user/categories/SearchBar';
 import VotingGrid from '@/components/user/categories/VotingGrid';
 import VotingFilters from '@/components/user/categories/VotingFilters';
+import VotingStats from '@/components/voting/VotingStats';
+import { BarChart3, Grid3X3 } from 'lucide-react';
 
 interface Voting {
   id: string;
@@ -145,6 +147,7 @@ export default function VotingPage() {
   const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'deadline');
   const [showOnlyJoined, setShowOnlyJoined] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'stats'>('grid');
 
   // Update URL when filters change
   useEffect(() => {
@@ -241,108 +244,151 @@ export default function VotingPage() {
     <div className="px-4 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Active Votings</h1>
-        <p className="text-gray-600 mt-2">
-          Participate in community decisions and earn reputation points
-        </p>
-      </div>
-
-      {/* Filters and Search */}
-      <div className="mb-8 space-y-6">
-        {/* Search Bar */}
-        <SearchBar
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search votings by title, description, or community..."
-        />
-
-        {/* Category Filter */}
-        <CategoryFilter
-          categories={categories}
-          selectedCategory={selectedCategory}
-          onCategoryChange={setSelectedCategory}
-        />
-
-        {/* Additional Filters */}
-        <VotingFilters
-          statusFilter={statusFilter}
-          onStatusChange={setStatusFilter}
-          typeFilter={typeFilter}
-          onTypeChange={setTypeFilter}
-          sortBy={sortBy}
-          onSortChange={setSortBy}
-          showOnlyJoined={showOnlyJoined}
-          onJoinedToggle={setShowOnlyJoined}
-        />
-      </div>
-
-      {/* Results Summary */}
-      <div className="mb-6">
         <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            Showing {filteredVotings.length} of {votings.length} votings
-            {selectedCategory !== 'all' && (
-              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
-                {categories.find(cat => cat.id === selectedCategory)?.name}
-              </span>
-            )}
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Active Votings</h1>
+            <p className="text-gray-600 mt-2">
+              Participate in community decisions and earn reputation points
+            </p>
           </div>
           
-          {(selectedCategory !== 'all' || searchQuery || statusFilter !== 'all' || typeFilter !== 'all') && (
+          {/* View Toggle */}
+          <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
             <button
-              onClick={() => {
-                setSelectedCategory('all');
-                setSearchQuery('');
-                setStatusFilter('all');
-                setTypeFilter('all');
-              }}
-              className="text-sm text-blue-600 hover:text-blue-800"
+              onClick={() => setViewMode('grid')}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
             >
-              Clear filters
+              <Grid3X3 className="w-4 h-4" />
+              <span>Grid View</span>
             </button>
-          )}
+            <button
+              onClick={() => setViewMode('stats')}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-md transition-colors ${
+                viewMode === 'stats'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Statistics</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Voting Grid */}
-      <VotingGrid
-        votings={filteredVotings}
-        onVote={handleVote}
-        loading={loading}
-      />
+      {/* Content - Conditional Rendering */}
+      {viewMode === 'grid' ? (
+        <>
+          {/* Filters and Search */}
+          <div className="mb-8 space-y-6">
+            {/* Search Bar */}
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search votings by title, description, or community..."
+            />
 
-      {/* Empty State */}
-      {filteredVotings.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">🗳️</div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">
-            No votings found
-          </h3>
-          <p className="text-gray-600 mb-6">
-            {searchQuery || selectedCategory !== 'all' || statusFilter !== 'all' || typeFilter !== 'all'
-              ? 'Try adjusting your search or filters'
-              : 'Join communities to participate in their votings'
-            }
-          </p>
-          <div className="flex justify-center space-x-4">
-            {(searchQuery || selectedCategory !== 'all' || statusFilter !== 'all' || typeFilter !== 'all') && (
-              <button
-                onClick={() => {
-                  setSelectedCategory('all');
-                  setSearchQuery('');
-                  setStatusFilter('all');
-                  setTypeFilter('all');
-                }}
-                className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
-              >
-                Clear Filters
-              </button>
-            )}
-            <Link href="/user/voting/create" className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">
-              Create Voting
-            </Link>
+            {/* Category Filter */}
+            <CategoryFilter
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onCategoryChange={setSelectedCategory}
+            />
+
+            {/* Additional Filters */}
+            <VotingFilters
+              statusFilter={statusFilter}
+              onStatusChange={setStatusFilter}
+              typeFilter={typeFilter}
+              onTypeChange={setTypeFilter}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              showOnlyJoined={showOnlyJoined}
+              onJoinedToggle={setShowOnlyJoined}
+            />
           </div>
-        </div>
+
+          {/* Results Summary */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                Showing {filteredVotings.length} of {votings.length} votings
+                {selectedCategory !== 'all' && (
+                  <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs">
+                    {categories.find(cat => cat.id === selectedCategory)?.name}
+                  </span>
+                )}
+              </div>
+              
+              {(selectedCategory !== 'all' || searchQuery || statusFilter !== 'all' || typeFilter !== 'all') && (
+                <button
+                  onClick={() => {
+                    setSelectedCategory('all');
+                    setSearchQuery('');
+                    setStatusFilter('all');
+                    setTypeFilter('all');
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Voting Grid */}
+          <VotingGrid
+            votings={filteredVotings}
+            onVote={handleVote}
+            loading={loading}
+          />
+
+          {/* Empty State */}
+          {filteredVotings.length === 0 && (
+            <div className="text-center py-12">
+              <div className="text-6xl mb-4">🗳️</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                No votings found
+              </h3>
+              <p className="text-gray-600 mb-6">
+                {searchQuery || selectedCategory !== 'all' || statusFilter !== 'all' || typeFilter !== 'all'
+                  ? 'Try adjusting your search or filters'
+                  : 'Join communities to participate in their votings'
+                }
+              </p>
+              <div className="flex justify-center space-x-4">
+                {(searchQuery || selectedCategory !== 'all' || statusFilter !== 'all' || typeFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setSelectedCategory('all');
+                      setSearchQuery('');
+                      setStatusFilter('all');
+                      setTypeFilter('all');
+                    }}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+                <Link href="/user/voting/create" className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700">
+                  Create Voting
+                </Link>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        /* Statistics View */
+        <VotingStats 
+          timeframe="month"
+          showTrends={true}
+          showCategories={true}
+          compact={false}
+        />
       )}
     </div>
   );

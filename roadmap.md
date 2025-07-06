@@ -210,7 +210,7 @@
 - [x] **4.2.1** Interfaz participación
 - [x] **4.2.2** Navegación por categorías
 - [x] **4.2.3** Creación de votaciones
-- [ ] **4.2.4** Visualización resultados
+- [x] **4.2.4** Visualización resultados
 - [ ] **4.2.5** Sistema de gamificación
 - [ ] **4.2.6** Responsive design
 - [ ] **4.2.7** Tests de usabilidad
