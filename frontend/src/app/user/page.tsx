@@ -8,6 +8,7 @@ import ActiveVotings from '@/components/user/ActiveVotings';
 import MyCommunities from '@/components/user/MyCommunities';
 import UserStats from '@/components/user/UserStats';
 import RecentActivity from '@/components/user/RecentActivity';
+import GamificationDisplay from '@/components/gamification/GamificationDisplay';
 
 interface UserProfile {
   wallet: string;
@@ -82,9 +83,16 @@ export default function UserDashboard() {
           <ActiveVotings />
         </div>
 
-        {/* Right Column - Communities & Activity */}
+        {/* Right Column - Communities, Activity & Gamification */}
         <div className="space-y-6">
           <MyCommunities />
+          <GamificationDisplay 
+            userId={publicKey?.toString()}
+            compact={true}
+            showAchievements={false}
+            showProgress={true}
+            showStreaks={true}
+          />
           <RecentActivity />
         </div>
       </div>

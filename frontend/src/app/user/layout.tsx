@@ -3,6 +3,7 @@
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletButton } from '@/components/ui/WalletComponents';
 import ClientOnly from '@/components/ui/ClientOnly';
+import RealtimeGamification from '@/components/gamification/RealtimeGamification';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -11,7 +12,7 @@ export default function UserLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { connected } = useWallet();
+  const { connected, publicKey } = useWallet();
   const pathname = usePathname();
 
   const navigation = [
@@ -104,7 +105,17 @@ export default function UserLayout({
           </div>
         }>
           {connected ? (
-            children
+            <>
+              {children}
+              
+              {/* Realtime Gamification Widget */}
+              <RealtimeGamification 
+                userId={publicKey?.toString()}
+                position="bottom-right"
+                showLevel={true}
+                showStreaks={true}
+              />
+            </>
           ) : (
             <div className="text-center py-12">
               <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">

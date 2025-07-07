@@ -112,9 +112,9 @@ export default function HomePage() {
               <Link href="/admin" className="btn-primary">
                 🏛️ Admin Panel
               </Link>
-              <button className="btn-secondary">
-                📊 View Dashboard
-              </button>
+              <Link href="/user" className="btn-secondary">
+                📊 User Dashboard
+              </Link>
             </>
           ) : (
             <>

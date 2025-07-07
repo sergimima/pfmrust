@@ -319,9 +319,12 @@ export default function VotingResultsVisualization({
                     />
                     <Bar 
                       dataKey="votes" 
-                      fill={(entry: any) => getOptionColor(results.options.indexOf(entry), entry.isWinner)}
                       radius={[4, 4, 0, 0]}
-                    />
+                    >
+                      {results.options.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={getOptionColor(index, entry.isWinner)} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>

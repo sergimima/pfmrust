@@ -7,6 +7,7 @@ import {
   User, Edit3, Trophy, TrendingUp, Calendar, Hash, 
   Users, CheckCircle, Clock, Award, Target, Star 
 } from 'lucide-react';
+import GamificationDisplay from '@/components/gamification/GamificationDisplay';
 
 interface UserProfile {
   wallet: string;
@@ -153,7 +154,7 @@ export default function ProfilePage() {
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'achievements' | 'activity'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'achievements' | 'activity' | 'gamification'>('overview');
 
   useEffect(() => {
     if (publicKey) {
@@ -346,7 +347,8 @@ export default function ProfilePage() {
             {[
               { id: 'overview', name: 'Overview', icon: User },
               { id: 'achievements', name: 'Achievements', icon: Award },
-              { id: 'activity', name: 'Activity', icon: Clock }
+              { id: 'activity', name: 'Activity', icon: Clock },
+              { id: 'gamification', name: 'Gamification', icon: Trophy }
             ].map(tab => {
               const Icon = tab.icon;
               return (
@@ -485,6 +487,20 @@ export default function ProfilePage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'gamification' && (
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">Gamification & Achievements</h3>
+            
+            <GamificationDisplay 
+              userId={publicKey?.toString()}
+              compact={false}
+              showAchievements={true}
+              showProgress={true}
+              showStreaks={true}
+            />
           </div>
         )}
 
