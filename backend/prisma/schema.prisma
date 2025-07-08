@@ -10,6 +10,58 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// User accounts cache from Solana
+model User {
+  id                   BigInt   @id
+  pubkey              String   @unique @db.VarChar(44)
+  reputation          Int      @default(0)
+  level               Int      @default(1)
+  totalVotesCast      Int      @map("total_votes_cast") @default(0)
+  totalCommunitiesJoined Int   @map("total_communities_joined") @default(0)
+  votingWeight        Decimal  @map("voting_weight") @default(1.0) @db.Decimal(3,2)
+  lastSynced          DateTime @map("last_synced") @default(now())
+  createdAt           DateTime @map("created_at") @default(now())
+  
+  // Relations
+  memberships         Membership[]
+  participations      Participation[]
+  
+  @@map("users_cache")
+}
+
+// User memberships in communities
+model Membership {
+  id                  BigInt   @id @default(autoincrement())
+  userId              BigInt   @map("user_id")
+  communityId         BigInt   @map("community_id")
+  joinedAt           DateTime @map("joined_at") @default(now())
+  isActive           Boolean  @map("is_active") @default(true)
+  role               String   @default("member") @db.VarChar(20)
+  
+  // Relations
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  community          Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, communityId])
+  @@map("memberships")
+}
+
+// User participations in votings
+model Participation {
+  id                 BigInt   @id @default(autoincrement())
+  userId             BigInt   @map("user_id")
+  votingId           BigInt   @map("voting_id")
+  optionSelected     Int      @map("option_selected")
+  votedAt           DateTime @map("voted_at") @default(now())
+  
+  // Relations
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  voting            Voting   @relation(fields: [votingId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, votingId])
+  @@map("participations")
+}
+
 // Communities cache from Solana
 model Community {
   id                    BigInt   @id
@@ -25,6 +77,7 @@ model Community {
   // Relations
   metadata             CommunityMetadata?
   votings              Voting[]
+  memberships          Membership[]
   analytics            CommunityAnalytics[]
 
   @@map("communities_cache")
@@ -35,6 +88,8 @@ model CommunityMetadata {
   id              BigInt   @id @default(autoincrement())
   communityId     BigInt   @unique @map("community_id")
   description     String?
+  category        String?  @db.VarChar(50)
+  requiresApproval Boolean @map("requires_approval") @default(false)
   rules           String?
   avatarUrl       String?  @map("avatar_url")
   bannerUrl       String?  @map("banner_url")
@@ -54,12 +109,13 @@ model CommunityMetadata {
 model Voting {
   id                BigInt      @id
   communityId       BigInt      @map("community_id")
-  title             String      @db.VarChar(128)
+  question          String      @db.VarChar(255)  // Changed from 'title' to 'question'
   creatorPubkey     String      @map("creator_pubkey") @db.VarChar(44)
   deadline          DateTime
   totalVotes        Int         @map("total_votes") @default(0)
   status            VotingStatus
   votingType        VotingType  @map("voting_type")
+  quorum            Int         @default(10)      // Added quorum field
   quorumEnabled     Boolean     @map("quorum_enabled") @default(false)
   quorumThreshold   Int?        @map("quorum_threshold")
   lastSynced        DateTime    @map("last_synced") @default(now())
@@ -68,6 +124,7 @@ model Voting {
   // Relations
   community         Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
   metadata          VotingMetadata?
+  participations    Participation[]
   
   @@map("votings_cache")
 }
@@ -77,6 +134,9 @@ model VotingMetadata {
   id              BigInt   @id @default(autoincrement())
   votingId        BigInt   @unique @map("voting_id")
   description     String?
+  voteType        String?  @map("vote_type") @db.VarChar(20)
+  options         String[]
+  results         Int[]
   category        String   @db.VarChar(50)
   tags            String[]
   creatorNotes    String?  @map("creator_notes")

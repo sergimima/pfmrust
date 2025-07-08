@@ -2,26 +2,47 @@ import { Router } from 'express';
 
 const router = Router();
 
-// Import all route modules
+// Import basic routes
 import healthRoutes from './health';
 import cacheRoutes from './cache';
 import jobRoutes from './jobs';
 
-console.log('🔧 About to import API routes...');
-try {
-  const apiRoutes = require('./api');
-  console.log('✅ API routes imported successfully');
-  // Mount routes
-  router.use('/', healthRoutes);
-  router.use('/cache', cacheRoutes);
-  router.use('/jobs', jobRoutes);
-  router.use('/', apiRoutes.default || apiRoutes);
-} catch (error) {
-  console.error('❌ CRITICAL ERROR importing API routes:', error);
-  // Mount only health routes
-  router.use('/', healthRoutes);
-  router.use('/cache', cacheRoutes);
-  router.use('/jobs', jobRoutes);
-}
+// Import API routes directly
+import usersRouter from './api/users';
+import communitiesRouter from './api/communities';
+import votesRouter from './api/votes';
+import statsRouter from './api/stats';
+import searchRouter from './api/search';
+
+// Mount basic routes
+router.use('/', healthRoutes);
+router.use('/cache', cacheRoutes);
+router.use('/jobs', jobRoutes);
+
+// Mount API routes directly (no /api prefix here because index.ts already adds it)
+router.use('/users', usersRouter);
+router.use('/communities', communitiesRouter);  
+router.use('/votes', votesRouter);
+router.use('/stats', statsRouter);
+router.use('/search', searchRouter);
+
+// API info endpoint
+router.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Solana Voting System API v1.0',
+    version: '1.0.0',
+    endpoints: {
+      users: '/api/users',
+      communities: '/api/communities',
+      votes: '/api/votes',
+      stats: '/api/stats',
+      search: '/api/search'
+    },
+    status: 'operational'
+  });
+});
+
+console.log('🚀 Routes mounted successfully: health, cache, jobs, users, communities, votes, stats, search');
 
 export default router;

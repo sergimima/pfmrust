@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 
 interface Voting {
@@ -16,8 +16,36 @@ interface Voting {
   priority: 'high' | 'medium' | 'low';
 }
 
-export default function ActiveVotings() {
-  const [votings] = useState<Voting[]>([
+interface ApiVoting {
+  id: number;
+  question: string;
+  description: string;
+  communityId: number;
+  creator: string;
+  voteType: 'OPINION' | 'KNOWLEDGE';
+  status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  options: string[];
+  results: number[];
+  totalParticipants: number;
+  quorum: number;
+  deadline: string;
+  createdAt: string;
+  community?: {
+    id: number;
+    name: string;
+    category: string;
+  };
+  _count?: { participations: number };
+}
+
+interface ActiveVotingsProps {
+  apiData?: ApiVoting[];
+  loading?: boolean;
+}
+
+export default function ActiveVotings({ apiData, loading }: ActiveVotingsProps) {
+  // Mock data como fallback
+  const [mockVotings] = useState<Voting[]>([
     {
       id: '1',
       title: 'Should we implement a new fee structure?',
@@ -56,6 +84,57 @@ export default function ActiveVotings() {
     }
   ]);
 
+  // Transformar datos de API a formato local
+  const transformedVotings = useMemo(() => {
+    if (!apiData) return mockVotings;
+
+    return apiData.map((vote): Voting => {
+      const timeLeft = calculateTimeLeft(vote.deadline);
+      const participantCount = vote.totalParticipants || vote._count?.participations || 0;
+      const quorumReached = participantCount >= vote.quorum;
+
+      return {
+        id: vote.id.toString(),
+        title: vote.question,
+        community: vote.community?.name || `Community ${vote.communityId}`,
+        type: vote.voteType === 'KNOWLEDGE' ? 'Knowledge' : 'Opinion',
+        timeLeft,
+        participantCount,
+        quorumReached,
+        userVoted: false, // TODO: determinar si usuario ya votó
+        category: vote.community?.category || 'General',
+        priority: determinePriority(vote)
+      };
+    });
+  }, [apiData, mockVotings]);
+
+  // Función para calcular tiempo restante
+  const calculateTimeLeft = (deadline: string): string => {
+    const now = new Date();
+    const end = new Date(deadline);
+    const diff = end.getTime() - now.getTime();
+
+    if (diff <= 0) return 'Ended';
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (days > 0) return `${days} day${days > 1 ? 's' : ''} ${hours} hour${hours !== 1 ? 's' : ''}`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ${minutes} min${minutes !== 1 ? 's' : ''}`;
+    return `${minutes} minute${minutes > 1 ? 's' : ''}`;
+  };
+
+  // Función para determinar prioridad basada en datos
+  const determinePriority = (vote: ApiVoting): 'high' | 'medium' | 'low' => {
+    const hoursLeft = (new Date(vote.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
+    const participationRate = vote.totalParticipants / vote.quorum;
+
+    if (hoursLeft < 24 && participationRate < 0.8) return 'high';
+    if (hoursLeft < 72 || vote.voteType === 'KNOWLEDGE') return 'medium';
+    return 'low';
+  };
+
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'high': return 'bg-red-100 text-red-800 border-red-200';
@@ -69,13 +148,36 @@ export default function ActiveVotings() {
     return type === 'Knowledge' ? '🧠' : '💭';
   };
 
+  if (loading) {
+    return (
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Active Votings</h2>
+          <p className="text-sm text-gray-600">Loading votings...</p>
+        </div>
+        <div className="p-6">
+          <div className="animate-pulse space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-20 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-lg shadow">
       <div className="p-6 border-b border-gray-200">
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Active Votings</h2>
-            <p className="text-sm text-gray-600">Vote on community proposals and earn reputation</p>
+            <p className="text-sm text-gray-600">
+              Vote on community proposals and earn reputation
+              {apiData && (
+                <span className="ml-2 text-green-600">• {apiData.length} from API</span>
+              )}
+            </p>
           </div>
           <Link
             href="/user/voting"
@@ -87,7 +189,7 @@ export default function ActiveVotings() {
       </div>
 
       <div className="divide-y divide-gray-200">
-        {votings.map((voting) => (
+        {transformedVotings.map((voting) => (
           <div key={voting.id} className="p-6 hover:bg-gray-50 transition-colors">
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -159,12 +261,15 @@ export default function ActiveVotings() {
         ))}
       </div>
 
-      {votings.length === 0 && (
+      {transformedVotings.length === 0 && (
         <div className="p-12 text-center">
           <div className="text-4xl mb-4">🗳️</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No active votings</h3>
           <p className="text-gray-600 mb-4">
-            Join communities to participate in their governance decisions
+            {apiData ? 
+              "No active votings found from API" : 
+              "Join communities to participate in their governance decisions"
+            }
           </p>
           <Link
             href="/user/communities/explore"
