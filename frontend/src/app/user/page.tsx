@@ -171,6 +171,8 @@ export default function UserDashboard() {
           <MyCommunities apiData={communitiesData || undefined} loading={communitiesLoading} />
           <GamificationDisplay 
             userId={publicKey?.toString()}
+            userData={userData}
+            userProfile={userProfile}
             compact={true}
             showAchievements={false}
             showProgress={true}

@@ -496,6 +496,8 @@ export default function ProfilePage() {
             
             <GamificationDisplay 
               userId={publicKey?.toString()}
+              userProfile={profile}
+              userData={profile}
               compact={false}
               showAchievements={true}
               showProgress={true}

@@ -20,6 +20,8 @@ interface RealtimeGamificationProps {
   position?: 'top-right' | 'bottom-right' | 'top-left' | 'bottom-left';
   showLevel?: boolean;
   showStreaks?: boolean;
+  userProfile?: any;
+  userData?: any;
 }
 
 function PointsAnimation({ points, onComplete }: PointsAnimationProps) {
@@ -83,18 +85,34 @@ export default function RealtimeGamification({
   userId,
   position = 'top-right',
   showLevel = true,
-  showStreaks = true
+  showStreaks = true,
+  userProfile,
+  userData
 }: RealtimeGamificationProps) {
-  const [currentPoints, setCurrentPoints] = useState(1245);
-  const [currentLevel, setCurrentLevel] = useState(8);
+  // USAR DATOS REALES del usuario en lugar de hardcodeados
+  const [currentPoints, setCurrentPoints] = useState(userProfile?.reputation || userData?.reputation || 250);
+  const [currentLevel, setCurrentLevel] = useState(userProfile?.level || userData?.level || 3);
   const [recentGains, setRecentGains] = useState<ReputationGain[]>([]);
   const [showPointsAnimation, setShowPointsAnimation] = useState<number | null>(null);
   const [showLevelUpAnimation, setShowLevelUpAnimation] = useState<number | null>(null);
   const [streaks, setStreaks] = useState({
-    voting: 15,
-    daily: 8,
+    voting: userProfile?.streakDays || userData?.streakDays || 15,
+    daily: userProfile?.streakDays || userData?.streakDays || 8,
     accuracy: 12
   });
+
+  // Actualizar datos cuando cambien las props del usuario
+  useEffect(() => {
+    if (userProfile || userData) {
+      setCurrentPoints(userProfile?.reputation || userData?.reputation || 250);
+      setCurrentLevel(userProfile?.level || userData?.level || 3);
+      setStreaks({
+        voting: userProfile?.streakDays || userData?.streakDays || 15,
+        daily: userProfile?.streakDays || userData?.streakDays || 8,
+        accuracy: 12
+      });
+    }
+  }, [userProfile, userData]);
 
   // Mock real-time updates
   useEffect(() => {

@@ -6,6 +6,7 @@ import ClientOnly from '@/components/ui/ClientOnly';
 import RealtimeGamification from '@/components/gamification/RealtimeGamification';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useUser } from '@/hooks/useApi';
 
 export default function UserLayout({
   children,
@@ -14,6 +15,11 @@ export default function UserLayout({
 }) {
   const { connected, publicKey } = useWallet();
   const pathname = usePathname();
+  
+  // Obtener datos del usuario para el widget de gamificación
+  const { data: userData, loading: userLoading, error: userError } = useUser(
+    publicKey?.toString() || ''
+  );
 
   const navigation = [
     { name: 'Dashboard', href: '/user', icon: '🏠' },
@@ -111,6 +117,8 @@ export default function UserLayout({
               {/* Realtime Gamification Widget */}
               <RealtimeGamification 
                 userId={publicKey?.toString()}
+                userProfile={userData}
+                userData={userData}
                 position="bottom-right"
                 showLevel={true}
                 showStreaks={true}

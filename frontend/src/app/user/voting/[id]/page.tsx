@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Clock, Users, Hash, CheckCircle, AlertTriangle, ArrowLeft, Share2, Trophy, Target } from 'lucide-react';
 import VotingResultsVisualization from '@/components/voting/VotingResultsVisualization';
+import { useVoting } from '@/hooks/useProgram';
+import { useWallet } from '@solana/wallet-adapter-react';
 
 interface VotingDetails {
   id: string;
@@ -76,6 +78,8 @@ export default function VotingDetailPage() {
   const params = useParams();
   const router = useRouter();
   const votingId = params.id as string;
+  const { connected, publicKey } = useWallet();
+  const { castVote, isConnected } = useVoting();
 
   const [voting, setVoting] = useState<VotingDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,14 +105,30 @@ export default function VotingDetailPage() {
   }, [votingId]);
 
   const handleVote = async () => {
-    if (selectedOption === null || !voting) return;
+    if (selectedOption === null || !voting || !connected || !publicKey) {
+      alert('❌ Por favor selecciona una opción y asegúrate de que tu wallet esté conectado');
+      return;
+    }
+
+    // Verificar conexión con smart contract
+    if (!isConnected) {
+      alert('❌ No se puede conectar con el programa Solana. Verifica tu conexión.');
+      return;
+    }
 
     setIsVoting(true);
     try {
-      // TODO: Call smart contract cast_vote()
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('🗳️ Iniciando votación con smart contract...');
+      console.log('📋 Parámetros:', {
+        votingId,
+        selectedOption,
+        wallet: publicKey.toString()
+      });
+
+      // Llamar al smart contract real
+      await castVote(votingId, selectedOption);
       
-      // Actualizar estado después del voto
+      // Actualizar estado después del voto exitoso
       setVoting(prev => prev ? {
         ...prev,
         userVoted: true,
@@ -122,10 +142,16 @@ export default function VotingDetailPage() {
       setActiveView('results');
       setShowResults(true);
       
-      alert('¡Voto registrado exitosamente! +1 punto de reputación ganado.');
-    } catch (error) {
-      console.error('Error voting:', error);
-      alert('Error al registrar el voto. Intenta de nuevo.');
+      alert('✅ ¡Voto registrado exitosamente en blockchain! +1 punto de reputación ganado.');
+    } catch (error: any) {
+      console.error('❌ Error voting:', error);
+      
+      // Mostrar error específico al usuario
+      if (error.message.includes('desarrollo')) {
+        alert(`🚧 ${error.message}`);
+      } else {
+        alert(`❌ Error al registrar el voto: ${error.message}`);
+      }
     } finally {
       setIsVoting(false);
     }
@@ -349,6 +375,54 @@ export default function VotingDetailPage() {
       {/* Content */}
       {activeView === 'vote' && !voting.userVoted && voting.status === 'Active' ? (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          {/* Wallet Connection Warning */}
+          {!connected && (
+            <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="w-6 h-6 text-yellow-600" />
+                <div>
+                  <h4 className="font-medium text-yellow-900">Wallet no conectado</h4>
+                  <p className="text-yellow-700">
+                    Necesitas conectar tu wallet Solana para poder votar.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Smart Contract Connection Status */}
+          {connected && (
+            <div className={`mb-6 border rounded-lg p-4 ${
+              isConnected 
+                ? 'bg-green-50 border-green-200' 
+                : 'bg-red-50 border-red-200'
+            }`}>
+              <div className="flex items-center space-x-3">
+                <div className={`w-3 h-3 rounded-full ${
+                  isConnected ? 'bg-green-500' : 'bg-red-500'
+                }`}></div>
+                <div>
+                  <h4 className={`font-medium ${
+                    isConnected ? 'text-green-900' : 'text-red-900'
+                  }`}>
+                    {isConnected ? 'Smart Contract Conectado' : 'Smart Contract Desconectado'}
+                  </h4>
+                  <p className={isConnected ? 'text-green-700' : 'text-red-700'}>
+                    {isConnected 
+                      ? 'Listo para votar en blockchain Solana' 
+                      : 'No se puede conectar con el programa Solana'
+                    }
+                  </p>
+                  {!isConnected && (
+                    <p className="text-xs text-red-600 mt-1">
+                      Programa: 98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           <h3 className="text-lg font-semibold text-gray-900 mb-6">Select your option:</h3>
           
           <div className="space-y-3 mb-8">
@@ -382,18 +456,28 @@ export default function VotingDetailPage() {
             
             <button
               onClick={handleVote}
-              disabled={selectedOption === null || isVoting}
+              disabled={selectedOption === null || isVoting || !connected || !isConnected}
               className="bg-blue-600 text-white px-8 py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
             >
               {isVoting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Submitting Vote...</span>
+                  <span>Signing Transaction...</span>
+                </>
+              ) : !connected ? (
+                <>
+                  <AlertTriangle className="w-5 h-5" />
+                  <span>Connect Wallet</span>
+                </>
+              ) : !isConnected ? (
+                <>
+                  <AlertTriangle className="w-5 h-5" />
+                  <span>Smart Contract Error</span>
                 </>
               ) : (
                 <>
                   <CheckCircle className="w-5 h-5" />
-                  <span>Submit Vote</span>
+                  <span>Sign & Submit Vote</span>
                 </>
               )}
             </button>
