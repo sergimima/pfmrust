@@ -463,17 +463,40 @@ export const useCommunity = () => {
       console.log('📝 Membership PDA:', membershipPda.toString());
       console.log('🔐 Wallet requiere FIRMA para unirse');
 
-      // Llamar a join_community del smart contract REAL
-      // Añadir aserción de tipo para evitar error de recursividad infinita
-      const tx = await (program.methods as any).joinCommunity()
-        .accounts({
-          membership: membershipPda,
-          community: communityPda,
-          user: userPda,
-          authority: wallet.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc();
+      // Llamar a join_community del smart contract REAL usando el discriminador correcto
+      // El discriminador para join_community según el IDL es [252, 106, 147, 30, 134, 74, 28, 232]
+      
+      // Crear el discriminador
+      const discriminator = Buffer.from([252, 106, 147, 30, 134, 74, 28, 232]);
+      
+      // No hay parámetros adicionales para esta instrucción según el IDL
+      const data = discriminator;
+      
+      // Crear la instrucción
+      const instruction = new TransactionInstruction({
+        keys: [
+          { pubkey: membershipPda, isSigner: false, isWritable: true },
+          { pubkey: communityPda, isSigner: false, isWritable: true },
+          { pubkey: userPda, isSigner: false, isWritable: false },
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        programId: program.programId,
+        data: data,
+      });
+      
+      // Crear y enviar la transacción
+      const transaction = new Transaction();
+      transaction.add(instruction);
+      
+      // Obtener el provider del programa
+      const provider = program.provider as AnchorProvider;
+      const tx = await provider.sendAndConfirm(transaction);
+      
+      console.log('📊 Datos de la instrucción:', {
+        discriminator: discriminator.toString('hex'),
+        data: data.toString('hex')
+      });
 
       console.log('✅ Unido a comunidad exitosamente en blockchain');
       console.log('🔗 Transaction signature:', tx);
@@ -541,20 +564,94 @@ export const useVoting = () => {
       // Convertir tipo de voto
       const voteTypeEnum = params.voteType === 'Knowledge' ? { knowledge: {} } : { opinion: {} };
 
-      // Llamar a create_voting del smart contract REAL
-      // Añadir aserción de tipo para evitar error de recursividad infinita
-      const tx = await (program.methods as any).createVoting(
-          params.question,
-          params.options,
-          new BN(Date.now() + (params.deadlineHours * 60 * 60 * 1000))
-        )
-        .accounts({
-          vote: votePda,
-          community: params.communityPda,
-          creator: wallet.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .rpc();
+      // Llamar a create_voting del smart contract REAL usando el discriminador correcto
+      // El discriminador para create_voting es el hash de "global:create_voting" truncado a 8 bytes
+      const discriminator = Buffer.from([157, 76, 170, 102, 236, 34, 118, 51]);
+      
+      // Serializar los parámetros
+      // 1. Tamaño de la pregunta (4 bytes)
+      const questionLength = Buffer.alloc(4);
+      questionLength.writeUInt32LE(params.question.length, 0);
+      const questionBuffer = Buffer.from(params.question);
+      
+      // 2. Tamaño del array de opciones (4 bytes)
+      const optionsLength = Buffer.alloc(4);
+      optionsLength.writeUInt32LE(params.options.length, 0);
+      
+      // 3. Cada opción: tamaño (4 bytes) + contenido
+      const optionsBuffers = [];
+      for (const option of params.options) {
+        const optionLength = Buffer.alloc(4);
+        optionLength.writeUInt32LE(option.length, 0);
+        optionsBuffers.push(Buffer.concat([optionLength, Buffer.from(option)]));
+      }
+      const optionsBuffer = Buffer.concat(optionsBuffers);
+      
+      // 4. Tipo de voto (1 byte): 0 para Opinion, 1 para Knowledge
+      const voteTypeByte = Buffer.from([params.voteType === 'Opinion' ? 0 : 1]);
+      
+      // 5. Respuesta correcta (opcional, 1 byte para indicar si existe + 1 byte para el valor)
+      const hasCorrectAnswer = Buffer.from([params.correctAnswer !== undefined ? 1 : 0]);
+      const correctAnswerByte = params.correctAnswer !== undefined ? 
+        Buffer.from([params.correctAnswer]) : Buffer.from([]);
+      
+      // 6. Deadline en horas (4 bytes)
+      const deadlineBuffer = Buffer.alloc(4);
+      deadlineBuffer.writeUInt32LE(params.deadlineHours, 0);
+      
+      // 7. Quorum requerido (8 bytes)
+      const quorumBuffer = Buffer.alloc(8);
+      quorumBuffer.writeBigUInt64LE(BigInt(params.quorumRequired), 0);
+      
+      // 8. Timestamp actual para la semilla del PDA
+      const timestamp = Date.now();
+      const timestampBuffer = Buffer.alloc(8);
+      timestampBuffer.writeBigInt64LE(BigInt(timestamp), 0);
+      
+      // Concatenar todos los parámetros
+      const data = Buffer.concat([
+        discriminator,
+        questionLength,
+        questionBuffer,
+        optionsLength,
+        optionsBuffer,
+        voteTypeByte,
+        hasCorrectAnswer,
+        correctAnswerByte,
+        deadlineBuffer,
+        quorumBuffer,
+        timestampBuffer
+      ]);
+      
+      // Crear la instrucción
+      const instruction = new TransactionInstruction({
+        keys: [
+          { pubkey: votePda, isSigner: false, isWritable: true },
+          { pubkey: params.communityPda, isSigner: false, isWritable: true },
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        programId: program.programId,
+        data: data,
+      });
+      
+      // Crear y enviar la transacción
+      const transaction = new Transaction();
+      transaction.add(instruction);
+      
+      console.log('📊 Datos de la instrucción createVoting:', {
+        discriminator: discriminator.toString('hex'),
+        question: params.question,
+        optionsCount: params.options.length,
+        voteType: params.voteType,
+        deadlineHours: params.deadlineHours,
+        quorumRequired: params.quorumRequired,
+        timestamp: timestamp
+      });
+      
+      // Usar el provider de Anchor para enviar la transacción
+      const provider = program.provider as AnchorProvider;
+      const tx = await provider.sendAndConfirm(transaction);
 
       console.log('✅ Votación creada exitosamente en blockchain');
       console.log('🔗 Transaction signature:', tx);

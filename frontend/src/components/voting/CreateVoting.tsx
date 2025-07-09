@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, X, Clock, Users, Hash, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { PublicKey } from '@solana/web3.js';
+import { useVoting } from '../../hooks/useProgram';
 
 // Simulación de datos de usuario - en producción vendría del wallet
 const mockUserData = {
@@ -15,6 +17,7 @@ interface Community {
   category: string;
   members: number;
   isActive: boolean;
+  address?: string; // Dirección de la comunidad en la blockchain (opcional)
 }
 
 // Hook para obtener comunidades reales
@@ -49,10 +52,10 @@ const useCommunities = () => {
           // Fallback a datos mock si la API falla
           console.log('⚠️ API failed, using mock data');
           setCommunities([
-            { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true },
-            { id: 2, name: "DeFi Discussion", category: "Finance", members: 890, isActive: true },
-            { id: 3, name: "Gaming Hub", category: "Gaming", members: 2100, isActive: true },
-            { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true }
+            { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true, address: "11111111111111111111111111111112" },
+            { id: 2, name: "DeFi Discussion", category: "Finance", members: 890, isActive: true, address: "11111111111111111111111111111113" },
+            { id: 3, name: "Gaming Hub", category: "Gaming", members: 2100, isActive: true, address: "11111111111111111111111111111114" },
+            { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true, address: "11111111111111111111111111111115" }
           ]);
         }
       } catch (err: any) {
@@ -60,10 +63,10 @@ const useCommunities = () => {
         setError(err?.message || 'Error desconocido al obtener comunidades');
         // Fallback a datos mock en caso de error
         setCommunities([
-          { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true },
-          { id: 2, name: "DeFi Discussion", category: "Finance", members: 890, isActive: true },
-          { id: 3, name: "Gaming Hub", category: "Gaming", members: 2100, isActive: true },
-          { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true }
+          { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true, address: "11111111111111111111111111111112" },
+          { id: 2, name: "DeFi Discussion", category: "Finance", members: 890, isActive: true, address: "11111111111111111111111111111113" },
+          { id: 3, name: "Gaming Hub", category: "Gaming", members: 2100, isActive: true, address: "11111111111111111111111111111114" },
+          { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true, address: "11111111111111111111111111111115" }
         ]);
       } finally {
         setLoading(false);
@@ -202,6 +205,9 @@ export default function CreateVoting() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Importar el hook useVoting
+  const { createVoting } = useVoting();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -210,16 +216,30 @@ export default function CreateVoting() {
     setIsSubmitting(true);
     
     try {
-      // Simulación de llamada a smart contract
-      console.log('Creating voting with data:', formData);
+      console.log('Creando votación con datos:', formData);
       
-      // En producción aquí iría:
-      // 1. Conectar con wallet Solana
-      // 2. Llamar a create_voting() del smart contract
-      // 3. Manejar transaction y confirmación
+      if (!selectedCommunity) {
+        throw new Error('Debes seleccionar una comunidad');
+      }
       
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simular delay
+      // Convertir el ID de comunidad a PublicKey
+      if (!selectedCommunity.address) {
+        throw new Error('La comunidad seleccionada no tiene una dirección válida');
+      }
+      const communityPda = new PublicKey(selectedCommunity.address);
       
+      // Llamar a la función real de createVoting
+      const result = await createVoting({
+        question: formData.title,
+        options: formData.options.filter(opt => opt.trim() !== ''),
+        voteType: formData.voteType as 'Opinion' | 'Knowledge',
+        correctAnswer: formData.voteType === 'Knowledge' ? parseInt(formData.correctAnswer) : undefined,
+        deadlineHours: formData.deadline,
+        quorumRequired: formData.quorum,
+        communityPda: communityPda
+      });
+      
+      console.log('Votación creada exitosamente:', result);
       alert('¡Votación creada exitosamente!');
       
       // Reset form
