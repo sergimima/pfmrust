@@ -42,7 +42,7 @@ export const IDL = {
           "isSigner": false
         },
         {
-          "name": "admin",
+          "name": "authority",
           "isMut": true,
           "isSigner": true
         },
@@ -58,8 +58,16 @@ export const IDL = {
           "type": "string"
         },
         {
-          "name": "description",
-          "type": "string"
+          "name": "category",
+          "type": "u8"
+        },
+        {
+          "name": "quorum_percentage",
+          "type": "u8"
+        },
+        {
+          "name": "requires_approval",
+          "type": "bool"
         }
       ]
     },

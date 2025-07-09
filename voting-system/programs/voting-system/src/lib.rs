@@ -761,8 +761,34 @@ pub mod voting_system {
         quorum_percentage: u8,
         requires_approval: bool,
     ) -> Result<()> {
+        // DEBUGGING - Log de valores recibidos
+        msg!("🔍 DEBUGGING create_community - Valores recibidos:");
+        msg!("- name: {}", name);
+        msg!("- category: {}", category);
+        msg!("- quorum_percentage: {}", quorum_percentage);
+        msg!("- requires_approval: {}", requires_approval);
+        
         require!(name.len() <= 50, VotingSystemError::NameTooLong);
-        require!(quorum_percentage > 0 && quorum_percentage <= 100, VotingSystemError::InvalidQuorum);
+        
+        // DEBUGGING - Verificación de tipos y valores
+        msg!("🔬 Tipo de quorum_percentage: u8");
+        msg!("🔬 Valor como u16: {}", quorum_percentage as u16);
+        msg!("🔬 Valor como u32: {}", quorum_percentage as u32);
+        
+        // Validación explícita del quorum con mejor manejo de errores
+        match quorum_percentage {
+            1..=100 => {
+                msg!("✅ Quorum válido: {}%", quorum_percentage);
+            }
+            0 => {
+                msg!("❌ ERROR: Quorum inválido - 0% no está permitido");
+                return Err(VotingSystemError::InvalidQuorum.into());
+            }
+            _ => {
+                msg!("❌ ERROR: Quorum inválido - {}% excede el máximo de 100%", quorum_percentage);
+                return Err(VotingSystemError::InvalidQuorum.into());
+            }
+        }
         
         let community = &mut ctx.accounts.community;
         let clock = Clock::get()?;
@@ -782,6 +808,7 @@ pub mod voting_system {
         
         msg!("Community '{}' created by {}", community.name, community.authority);
         msg!("Requires approval: {}", requires_approval);
+        msg!("Final quorum_percentage stored: {}", community.quorum_percentage);
         Ok(())
     }
 

@@ -50,7 +50,7 @@ function PointsAnimation({ points, onComplete }: PointsAnimationProps) {
     </div>
   );
 }
-
+/*
 function LevelUpAnimation({ level, onComplete }: { level: number; onComplete?: () => void }) {
   const [visible, setVisible] = useState(true);
 
@@ -79,7 +79,7 @@ function LevelUpAnimation({ level, onComplete }: { level: number; onComplete?: (
       </div>
     </div>
   );
-}
+}*/
 
 export default function RealtimeGamification({
   userId,
@@ -205,12 +205,12 @@ export default function RealtimeGamification({
       )}
 
       {/* Level Up Animation */}
-      {showLevelUpAnimation && (
+      {/*showLevelUpAnimation && (
         <LevelUpAnimation 
           level={showLevelUpAnimation} 
           onComplete={() => setShowLevelUpAnimation(null)}
         />
-      )}
+      )*/}
 
       {/* Floating Gamification Widget */}
       <div className={`fixed ${getPositionClasses()} z-40 max-w-sm`}>
@@ -303,4 +303,4 @@ export default function RealtimeGamification({
   );
 }
 
-export { PointsAnimation, LevelUpAnimation };
+export { PointsAnimation, /*LevelUpAnimation */ };

@@ -8,11 +8,20 @@ const mockUserData = {
   wallet: "GJENwjwdh7rAcZyrYh76SDjwgYrhncfhQKaMNGfSHirw"
 };
 
+// Definición del tipo Community para evitar errores de tipado
+interface Community {
+  id: number;
+  name: string;
+  category: string;
+  members: number;
+  isActive: boolean;
+}
+
 // Hook para obtener comunidades reales
 const useCommunities = () => {
-  const [communities, setCommunities] = useState([]);
+  const [communities, setCommunities] = useState<Community[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchCommunities = async () => {
@@ -28,7 +37,7 @@ const useCommunities = () => {
         
         if (data.success && data.data) {
           // Transformar datos de API al formato esperado
-          const transformedCommunities = data.data.map(community => ({
+          const transformedCommunities = data.data.map((community: any) => ({
             id: community.id,
             name: community.name,
             category: community.metadata?.category || 'General',
@@ -46,9 +55,9 @@ const useCommunities = () => {
             { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true }
           ]);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching communities:', err);
-        setError(err.message);
+        setError(err?.message || 'Error desconocido al obtener comunidades');
         // Fallback a datos mock en caso de error
         setCommunities([
           { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true },
@@ -102,6 +111,8 @@ interface FormData {
 
 export default function CreateVoting() {
   const { communities, loading: communitiesLoading, error: communitiesError } = useCommunities();
+  // Asegurar que selectedCommunity sea del tipo Community o undefined
+  const [selectedCommunity, setSelectedCommunity] = useState<Community | undefined>(undefined);
   
   const [formData, setFormData] = useState<FormData>({
     community: '',
@@ -233,7 +244,15 @@ export default function CreateVoting() {
     }
   };
 
-  const selectedCommunity = communities.find(c => c.id === parseInt(formData.community));
+  // Actualizar selectedCommunity cuando cambie formData.community o communities
+  useEffect(() => {
+    if (formData.community && communities.length > 0) {
+      const found = communities.find(c => c.id === parseInt(formData.community));
+      setSelectedCommunity(found);
+    } else {
+      setSelectedCommunity(undefined);
+    }
+  }, [formData.community, communities]);
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white">

@@ -3,7 +3,7 @@
 ## 📊 **AUDIT CORRECTO - JULIO 2025**
 
 **Metodología:** Comparación del código actual con el roadmap original (roadmap.md.bkp)
-
+Entity SolanaVotingSystem_PFM_v2
 ---
 
 ## ✅ **FASE 1: SMART CONTRACTS CORE (85% COMPLETADO)**
@@ -523,3 +523,16 @@ Super Admin: GJENwjwdh7rAcZyrYh76SDjwgYrhncfhQKaMNGfSHirw
 - DELETE /api/votes/:id - Para eliminar votaciones
   - Base de datos: Marcar la votación como cancelada o eliminarla
   - Blockchain: Cerrar o marcar como cancelada la cuenta de votación
+
+
+
+  anchor deploy
+Deploying cluster: https://api.devnet.solana.com
+Upgrade authority: /home/sergi/.config/solana/id.json
+Deploying program "voting_system"...
+Program path: /mnt/c/Users/seku_/Documents/BLOCKCHAIN_BOOTCAMP/pfmrust/voting-system/target/deploy/voting_system.so...
+Program Id: 98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z                                                                                                                                          
+
+Signature: Jar8TDqycghMQ3CUg3giWMh5XPdh1qgA5FSh6naaZR9RzRc7ALdnPvcRUFycTroqvRucca5hxeq5AcphJaL1NcL
+
+Deploy success

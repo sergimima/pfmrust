@@ -350,14 +350,13 @@ router.post('/',
 
 /**
  * POST /api/communities/join
- * Unirse a una comunidad
+ * Obtener PDAs para unirse a una comunidad (NO crea membresía)
  */
 router.post('/join',
   handleAsync(async (req: Request, res: Response) => {
   const { 
     communityId, 
-    userWallet,
-    signature = null // Firma opcional para verificación
+    userWallet
   } = req.body;
 
   // Validar campos requeridos
@@ -381,8 +380,7 @@ router.post('/join',
     }
 
     // 2. Verificar si el usuario ya es miembro
-    // Primero obtener el ID del usuario por su wallet
-    const user = await prisma.user.findFirst({
+    let user = await prisma.user.findFirst({
       where: {
         pubkey: userWallet
       }
@@ -390,7 +388,7 @@ router.post('/join',
     
     if (!user) {
       // Si el usuario no existe, crearlo
-      const newUser = await prisma.user.create({
+      user = await prisma.user.create({
         data: {
           id: BigInt(Date.now()),
           pubkey: userWallet,
@@ -398,15 +396,13 @@ router.post('/join',
         }
       });
       
-      console.log(`Usuario creado con ID: ${newUser.id}`);
+      console.log(`Usuario creado con ID: ${user.id}`);
     }
-    
-    const userId = user ? user.id : BigInt(Date.now());
     
     const existingMembership = await prisma.membership.findFirst({
       where: {
         communityId: BigInt(communityId),
-        userId: userId
+        userId: user.id
       }
     });
 
@@ -416,9 +412,8 @@ router.post('/join',
 
     // 3. Verificar si la comunidad requiere aprobación
     const requiresApproval = community.metadata?.requiresApproval || false;
-    const isActive = !requiresApproval; // Si requiere aprobación, no está activo inicialmente
 
-    // 4. Interacción con blockchain (derivar PDAs necesarios)
+    // 4. Derivar PDAs necesarios para blockchain
     const { PublicKey } = require('@solana/web3.js');
     const PROGRAM_ID = new PublicKey('98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z');
     
@@ -450,11 +445,104 @@ router.post('/join',
       PROGRAM_ID
     );
 
+    // 5. Devolver PDAs para que el frontend ejecute la transacción
+    console.log('🔄 Devolviendo PDAs para transacción blockchain');
+    
+    return res.status(200).json(apiResponse({
+      step: 'blockchain_required',
+      blockchain: {
+        programId: PROGRAM_ID.toString(),
+        network: 'devnet',
+        pdas: {
+          community: communityPda.toString(),
+          user: userPda.toString(),
+          membership: membershipPda.toString()
+        },
+        requiresOnChainAction: true,
+        instructions: [
+          'join_community' // Instrucción que debe ejecutarse en el frontend
+        ]
+      },
+      community: {
+        id: Number(community.id),
+        name: community.name,
+        requiresApproval: requiresApproval
+      }
+    }, 'PDAs generados. Ejecuta la transacción blockchain y confirma con /join/confirm'));
+       
+  } catch (error) {
+    console.error('Error al procesar unión a comunidad:', error);
+    return res.status(500).json(apiResponse(null, 'Error al procesar unión a comunidad', null, 'SERVER_ERROR'));
+  }
+}));
+
+/**
+ * POST /api/communities/join/confirm
+ * Confirmar membresía después de transacción blockchain exitosa
+ */
+router.post('/join/confirm',
+  handleAsync(async (req: Request, res: Response) => {
+  const { 
+    communityId, 
+    userWallet,
+    transactionSignature // Firma de la transacción blockchain
+  } = req.body;
+
+  // Validar campos requeridos
+  if (!communityId || !userWallet || !transactionSignature) {
+    return res.status(400).json(apiResponse(null, 'communityId, userWallet y transactionSignature son campos requeridos', null, 'VALIDATION_ERROR'));
+  }
+
+  try {
+    // 1. Verificar que la comunidad existe
+    const community = await prisma.community.findUnique({
+      where: {
+        id: BigInt(communityId)
+      },
+      include: {
+        metadata: true
+      }
+    });
+
+    if (!community) {
+      return res.status(404).json(apiResponse(null, 'Comunidad no encontrada', null, 'NOT_FOUND'));
+    }
+
+    // 2. Obtener usuario
+    const user = await prisma.user.findFirst({
+      where: {
+        pubkey: userWallet
+      }
+    });
+    
+    if (!user) {
+      return res.status(404).json(apiResponse(null, 'Usuario no encontrado', null, 'NOT_FOUND'));
+    }
+
+    // 3. Verificar si el usuario ya es miembro
+    const existingMembership = await prisma.membership.findFirst({
+      where: {
+        communityId: BigInt(communityId),
+        userId: user.id
+      }
+    });
+
+    if (existingMembership) {
+      return res.status(400).json(apiResponse(null, 'El usuario ya es miembro de esta comunidad', null, 'ALREADY_MEMBER'));
+    }
+
+    // 4. TODO: Verificar que la transacción blockchain es válida
+    // (Consultar la transacción en Solana RPC para confirmar que existe)
+    console.log('🔍 Verificando transacción blockchain:', transactionSignature);
+    
     // 5. Crear la membresía en la base de datos
+    const requiresApproval = community.metadata?.requiresApproval || false;
+    const isActive = !requiresApproval;
+    
     const membership = await prisma.membership.create({
       data: {
         communityId: BigInt(communityId),
-        userId: userId,
+        userId: user.id,
         isActive: isActive,
         joinedAt: new Date(),
         role: requiresApproval ? 'PENDING' : 'MEMBER'
@@ -479,7 +567,9 @@ router.post('/join',
     invalidateCache({ namespace: 'communities', tags: ['communities', 'listings'] });
     invalidateCache({ namespace: 'communities', tags: ['community-details'], keys: [`community:${communityId}`] });
 
-    // 8. Respuesta con información de blockchain
+    // 8. Respuesta exitosa
+    console.log('✅ Membresía confirmada exitosamente');
+    
     return res.status(201).json(apiResponse({
       membership: {
         id: Number(membership.id),
@@ -489,25 +579,14 @@ router.post('/join',
         role: membership.role,
         joinedAt: membership.joinedAt
       },
-      blockchain: {
-        programId: PROGRAM_ID.toString(),
-        network: 'devnet',
-        pdas: {
-          community: communityPda.toString(),
-          user: userPda.toString(),
-          membership: membershipPda.toString()
-        },
-        requiresOnChainAction: true,
-        instructions: [
-          'join_community' // Instrucción que debe ejecutarse en el frontend
-        ]
-      }
+      transactionSignature: transactionSignature
     }, requiresApproval ? 
        'Solicitud de membresía enviada. Pendiente de aprobación.' : 
        'Te has unido a la comunidad exitosamente.'));
+       
   } catch (error) {
-    console.error('Error al unirse a la comunidad:', error);
-    return res.status(500).json(apiResponse(null, 'Error al unirse a la comunidad', null, 'SERVER_ERROR'));
+    console.error('Error confirmando membresía:', error);
+    return res.status(500).json(apiResponse(null, 'Error confirmando membresía', null, 'SERVER_ERROR'));
   }
 }));
 

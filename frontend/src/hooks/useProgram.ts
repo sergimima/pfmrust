@@ -1,12 +1,14 @@
 // frontend/src/hooks/useProgram.ts - IMPLEMENTACIÓN REAL CON ANCHOR
 import { useAnchorWallet, useConnection } from '@solana/wallet-adapter-react';
-import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
+import { Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
 import { useMemo } from 'react';
-import { IDL } from '@/lib/idl';
-import { SystemProgram, PublicKey } from '@solana/web3.js';
+import { IDL } from '../lib/idl';
 
 // Program ID del smart contract deployado
-const PROGRAM_ID = new PublicKey('98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z');
+const PROGRAM_ID_STRING = '98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z';
+// Crear PublicKey de forma segura
+const PROGRAM_ID = new PublicKey(PROGRAM_ID_STRING);
 
 export const useProgram = () => {
   const { connection } = useConnection();
@@ -31,6 +33,8 @@ export const useProgram = () => {
       console.log('🔑 Usando Program ID:', PROGRAM_ID.toString());
       
       // Crear programa Anchor REAL con IDL
+      // Crear programa Anchor con la nueva versión 0.31.1
+      // El orden correcto es: IDL, programId, provider
       const program = new Program(IDL as any, PROGRAM_ID, provider);
       
       console.log('✅ Programa Anchor REAL inicializado exitosamente');
@@ -139,8 +143,10 @@ export const useCommunity = () => {
   const createCommunity = async (params: {
     name: string;
     category: number;
-    quorumPercentage: number;
-    requiresApproval: boolean;
+    quorum_percentage?: number; // Nombre exacto como en el IDL
+    quorumPercentage?: number; // Mantener compatibilidad con código existente
+    requires_approval?: boolean; // Nombre exacto como en el IDL
+    requiresApproval?: boolean; // Mantener compatibilidad con código existente
   }) => {
     if (!program || !wallet?.publicKey) {
       throw new Error('❌ Wallet no conectado o programa no disponible');
@@ -158,29 +164,141 @@ export const useCommunity = () => {
         ],
         program.programId
       );
-
+      
       console.log('📝 Community PDA:', communityPda.toString());
       console.log('🔐 Wallet requiere FIRMA para crear comunidad');
 
-      // Llamar a create_community del smart contract REAL
-      const tx = await program.methods
-        .createCommunity(
+      // CORRECCIÓN CRÍTICA: Conversión explícita a u8
+      const quorumPercentage = params.quorum_percentage || params.quorumPercentage || 50;
+      const requiresApproval = params.requires_approval !== undefined ? params.requires_approval : (params.requiresApproval !== undefined ? params.requiresApproval : false);
+      
+      // CONVERSIÓN FORZADA A u8 (0-255) con parseInt
+      const categoryU8 = parseInt(String(Math.max(0, Math.min(255, params.category || 0))));
+      const quorumU8 = parseInt(String(Math.max(1, Math.min(100, quorumPercentage))));
+      
+      console.log('🔧 CONVERSIÓN FORZADA A u8 con parseInt:');
+      console.log('- category original:', params.category, '-> u8:', categoryU8);
+      console.log('- quorum original:', quorumPercentage, '-> u8:', quorumU8);
+      console.log('- requires_approval:', requiresApproval);
+      
+      // Verificar que los valores están en el rango correcto
+      if (categoryU8 < 0 || categoryU8 > 255) {
+        throw new Error(`Category fuera de rango u8: ${categoryU8}`);
+      }
+      if (quorumU8 < 1 || quorumU8 > 100) {
+        throw new Error(`Quorum fuera de rango válido: ${quorumU8}`);
+      }
+      
+      console.log('✅ VALIDACIÓN EXITOSA - Valores u8 correctos');
+      console.log('📊 VALORES FINALES:');
+      console.log('- name:', params.name, '(string)');
+      console.log('- category:', categoryU8, '(u8)');
+      console.log('- quorum_percentage:', quorumU8, '(u8)');
+      console.log('- requires_approval:', requiresApproval, '(bool)');
+      
+      // Asignar valores convertidos
+      params.quorum_percentage = quorumU8;
+      params.requires_approval = requiresApproval;
+      const category = categoryU8;
+      
+      console.log('SOLUCIÓN FINAL - Usando nombres exactos del IDL:');
+      console.log('- quorum_percentage:', params.quorum_percentage, 'tipo:', typeof params.quorum_percentage);
+      console.log('- category:', category, 'tipo:', typeof category);
+      console.log('- requires_approval:', params.requires_approval, 'tipo:', typeof params.requires_approval);
+      
+      console.log('USANDO VALORES REALES DEL USUARIO:');
+      console.log('- quorum original:', params.quorumPercentage, '-> normalizado:', params.quorum_percentage);
+      console.log('- category original:', params.category, '-> normalizado:', category);
+      console.log('- Validación: quorum > 0 && quorum <= 100 =', params.quorum_percentage > 0 && params.quorum_percentage <= 100);
+      
+      console.log('🔢 TESTING - Valores finales');
+      console.log('🔍 DEBUGGING - quorum_percentage:', params.quorum_percentage);
+      console.log('🔍 DEBUGGING - category:', category);
+      console.log('🔍 DEBUGGING - Program ID:', PROGRAM_ID.toString());
+      
+      // Obtener el valor de requires_approval para logs
+      //const requiresApproval = params.requires_approval;
+      
+      console.log('🔍 DEBUG - Params recibidos:', params);
+      console.log('🔍 DEBUG - quorum_percentage:', params.quorum_percentage);
+      console.log('🔍 DEBUG - category:', category);
+      
+      console.log('Valores finales a enviar:', {
+        name: params.name,
+        category: category,
+        quorum_percentage: params.quorum_percentage,
+        requires_approval: params.requires_approval
+      });
+      
+      // Usar 4 parámetros como está definido en lib.rs (la implementación real)
+      console.log('🔄 Enviando 4 parámetros como en lib.rs (con números nativos)...');
+      console.log('🔍 Tipos finales:', {
+        name: typeof params.name,
+        category: typeof category + ' (valor: ' + category + ')',
+        quorum_percentage: typeof params.quorum_percentage + ' (valor: ' + params.quorum_percentage + ')',
+        requires_approval: typeof params.requires_approval
+      });
+      console.log('📝 TRANSACTION DETAILS:');
+      console.log('- Community PDA:', communityPda.toString());
+      console.log('- Authority:', wallet.publicKey.toString());
+      console.log('- System Program:', SystemProgram.programId.toString());
+      
+      // DEBUGGING FINAL - Verificar valores nativos
+      console.log('🔍 DEBUGGING FINAL - Valores nativos exactos:');
+      console.log('- name bytes:', Buffer.from(params.name).toString('hex'));
+      console.log('- category nativo:', category, 'tipo:', typeof category);
+      console.log('- quorum_percentage:', params.quorum_percentage, 'tipo:', typeof params.quorum_percentage);
+      console.log('- requires_approval:', params.requires_approval);
+      
+      console.log('💨 PROBANDO CON 4 PARÁMETROS (usando nombres exactos del IDL):');
+      console.log('- name:', params.name);
+      console.log('- category:', category);
+      console.log('- quorum_percentage:', params.quorum_percentage);
+      console.log('- requires_approval:', params.requires_approval);
+      
+      try {
+        // Usando exactamente los mismos nombres de parámetros que en el IDL
+        const method = program.methods.createCommunity(
           params.name,
-          params.category,
-          params.quorumPercentage,
-          params.requiresApproval
-        )
-        .accounts({
+          category,
+          params.quorum_percentage,
+          params.requires_approval
+        );
+        console.log('✅ Método creado exitosamente');
+        
+        console.log('🔄 Paso 2: Configurando cuentas...');
+        const methodWithAccounts = method.accounts({
           community: communityPda,
           authority: wallet.publicKey,
           systemProgram: SystemProgram.programId,
-        })
-        .rpc();
-
-      console.log('✅ Comunidad creada exitosamente en blockchain');
-      console.log('🔗 Transaction signature:', tx);
-      
-      return { communityPda, transaction: tx };
+        });
+        console.log('✅ Cuentas configuradas exitosamente');
+        
+        console.log('🔄 Paso 3: Enviando transacción a la red...');
+        const tx = await methodWithAccounts.rpc();
+        console.log('✅ Transacción enviada exitosamente');
+        
+        console.log('✅ Comunidad creada exitosamente en blockchain');
+        console.log('🔗 Transaction signature:', tx);
+        
+        return { communityPda, transaction: tx };
+      } catch (error: any) {
+        console.log('❌ ERROR DETALLADO:');
+        console.log('- Error type:', typeof error);
+        console.log('- Error name:', error.name);
+        console.log('- Error message:', error.message);
+        console.log('- Error stack:', error.stack);
+        console.log('- Error completo:', error);
+        
+        if (error.logs) {
+          console.log('📜 LOGS DE LA TRANSACCIÓN:');
+          error.logs.forEach((log: string, i: number) => {
+            console.log(`  ${i}: ${log}`);
+          });
+        }
+        
+        throw error;
+      }
     } catch (error: any) {
       console.error('❌ Error creando comunidad en blockchain:', error);
       throw new Error(`Error creando comunidad: ${error.message}`);

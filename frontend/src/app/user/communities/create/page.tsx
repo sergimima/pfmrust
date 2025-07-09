@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Users, Settings, Globe, CheckCircle, Info, AlertTriangle } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import { useCommunity } from '@/hooks/useProgram';
+import { useWallet } from '@solana/wallet-adapter-react';
 
 // Categorías disponibles para comunidades
 const categories = [
@@ -50,6 +52,8 @@ interface FormData {
 
 export default function CreateCommunityPage() {
   const router = useRouter();
+  const { publicKey } = useWallet();
+  const { createCommunity } = useCommunity();
   const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
@@ -142,38 +146,109 @@ export default function CreateCommunityPage() {
     
     if (!validateForm()) return;
 
+    // Verificar wallet conectado
+    if (!publicKey) {
+      alert('❌ Por favor conecta tu wallet primero');
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
-      // Preparar los datos para el backend
+      console.log('🏘️ Iniciando creación de comunidad...');
+      console.log('📍 Wallet:', publicKey.toString());
+      console.log('📋 Data:', formData);
+
+      // PASO 1: Crear comunidad en blockchain PRIMERO
+      console.log('🔐 Paso 1: Creando comunidad en blockchain...');
+      
+      // Preparar datos para smart contract
+      const categoryMapping: Record<string, number> = {
+        'technology': 0,
+        'finance': 1,
+        'gaming': 2,
+        'art': 3,
+        'education': 4,
+        'sports': 5,
+        'music': 6,
+        'science': 7,
+        'politics': 8,
+        'general': 9
+      };
+      
+      const blockchainParams = {
+        name: formData.name,
+        category: categoryMapping[formData.category] || 9, // Default to general
+        quorumPercentage: 50, // Valor u8 entre 1-100
+        requiresApproval: formData.requiresApproval
+      };
+      
+      console.log('📨 Enviando a smart contract:', blockchainParams);
+      console.log('⚠️  Quorum value:', blockchainParams.quorumPercentage, 'type:', typeof blockchainParams.quorumPercentage);
+      console.log('⚠️  Esto requerirá FIRMA de tu wallet');
+      
+      // Ejecutar create_community en blockchain
+      const blockchainResult = await createCommunity(blockchainParams);
+      
+      console.log('✅ Comunidad creada en blockchain:', blockchainResult);
+      
+      // PASO 2: Confirmar en backend DESPUÉS del blockchain
+      console.log('🔄 Paso 2: Confirmando en backend...');
+      
+      // Preparar datos para backend
       const communityData = {
         name: formData.name,
         description: formData.description,
-        adminPubkey: mockUserData.wallet, // En producción, usar la wallet conectada
+        adminPubkey: publicKey.toString(),
         category: formData.category.toUpperCase(),
         requiresApproval: formData.requiresApproval,
-        votingFee: 0, // Por ahora, sin fee
+        votingFee: 0,
         rules: formData.rules,
         tags: formData.tags,
         website: formData.website,
         socialLinks: {
           discord: formData.discord,
           twitter: formData.twitter
+        },
+        // Añadir info blockchain
+        blockchainInfo: {
+          communityPda: blockchainResult.communityPda.toString(),
+          transactionSignature: blockchainResult.transaction,
+          programId: '98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z'
         }
       };
       
-      console.log('Creating community with data:', communityData);
+      console.log('📨 Enviando a backend:', communityData);
       
-      // Llamar al endpoint del backend
+      // Llamar al backend
       const response = await apiClient.createCommunity(communityData);
       
-      console.log('Community created successfully:', response);
-      alert('¡Comunidad creada exitosamente!');
+      console.log('✅ Comunidad confirmada en backend:', response);
+      
+      // PASO 3: Éxito completo
+      alert(`🎉 ¡Comunidad "${formData.name}" creada exitosamente!\n\n` +
+            `🔗 Transacción: ${blockchainResult.transaction}\n` +
+            `📍 Community PDA: ${blockchainResult.communityPda.toString()}`);
+      
       router.push('/user/communities');
       
-    } catch (error) {
-      console.error('Error creating community:', error);
-      alert('Error al crear la comunidad. Intenta de nuevo.');
+    } catch (error: any) {
+      console.error('❌ Error completo creando comunidad:', error);
+      
+      // Manejo de errores específicos
+      if (error.message.includes('User rejected')) {
+        alert('❌ Transacción cancelada por el usuario');
+      } else if (error.message.includes('insufficient funds')) {
+        alert('❌ Fondos insuficientes para crear la comunidad');
+      } else if (error.message.includes('wallet')) {
+        alert('❌ Error de wallet. Verifica que esté conectado correctamente');
+      } else if (error.message.includes('blockchain')) {
+        alert('❌ Error en blockchain. La comunidad no se creó');
+      } else if (error.message.includes('backend')) {
+        alert('❌ Comunidad creada en blockchain pero error en backend. Contacta soporte');
+      } else {
+        alert(`❌ Error creando comunidad: ${error.message}`);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -215,14 +290,21 @@ export default function CreateCommunityPage() {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <div className="flex items-center gap-2">
               <Info className="w-5 h-5 text-blue-600" />
-              <span className="font-medium text-blue-900">Creation Fee</span>
+              <span className="font-medium text-blue-900">Creation Cost</span>
             </div>
-            <p className="text-blue-700 mt-1">
-              As a {feeInfo.tier} user, creating a community costs {feeInfo.amount} SOL.
-              {mockUserData.reputation >= 1000 && (
-                <span className="text-green-600 ml-1">You get a discount for your reputation!</span>
+            <div className="text-blue-700 mt-1">
+              <p>🔗 <strong>Blockchain:</strong> {feeInfo.amount} SOL (tier: {feeInfo.tier})</p>
+              <p>⛽ <strong>Gas:</strong> ~0.000005 SOL</p>
+              <p>💰 <strong>Total:</strong> ~{feeInfo.amount + 0.000005} SOL</p>
+              {publicKey ? (
+                <p className="text-green-600 mt-1">✅ Wallet conectado: {publicKey.toString().slice(0, 8)}...</p>
+              ) : (
+                <p className="text-red-600 mt-1">❌ Conecta tu wallet para crear la comunidad</p>
               )}
-            </p>
+              {mockUserData.reputation >= 1000 && (
+                <p className="text-green-600 mt-1">✨ You get a discount for your reputation!</p>
+              )}
+            </div>
           </div>
         )}
 
@@ -517,39 +599,50 @@ export default function CreateCommunityPage() {
           {/* Actions */}
           <div className="flex justify-between items-center">
             <button
-              type="button"
-              onClick={() => setShowPreview(!showPreview)}
-              className="px-4 py-2 text-blue-600 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors"
+            type="button"
+            onClick={() => setShowPreview(!showPreview)}
+            className="px-4 py-2 text-blue-600 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors"
             >
-              {showPreview ? 'Hide Preview' : 'Show Preview'}
+            {showPreview ? 'Hide Preview' : 'Show Preview'}
             </button>
             
             <div className="flex gap-4">
-              <Link
-                href="/user/communities"
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </Link>
-              
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              >
-                {isSubmitting ? (
+            <Link
+            href="/user/communities"
+            className="px-6 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+            >
+            Cancel
+            </Link>
+            
+            {!publicKey ? (
+            <button
+              type="button"
+              disabled
+                className="px-6 py-2 bg-gray-400 text-white rounded-md cursor-not-allowed flex items-center gap-2"
+            >
+            <AlertTriangle className="w-4 h-4" />
+            Conecta tu wallet
+            </button>
+            ) : (
+            <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              {isSubmitting ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    Create Community
-                  </>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-4 h-4" />
+                        Create Community
+                      </>
+                    )}
+                  </button>
                 )}
-              </button>
-            </div>
+              </div>
           </div>
         </form>
 

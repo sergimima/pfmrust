@@ -8,6 +8,9 @@ import {
   UserPlus, UserMinus, Settings, Flag, Share2, Trophy, TrendingUp 
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import { useCommunity } from '@/hooks/useProgram';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { PublicKey } from '@solana/web3.js';
 
 interface CommunityDetails {
   id: string;
@@ -176,6 +179,17 @@ export default function CommunityDetailPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'votings' | 'members' | 'rules'>('overview');
   const [loading, setLoading] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
+  const { publicKey } = useWallet();
+  const { joinCommunity } = useCommunity();
+
+  useEffect(() => {
+    // Verificar estado de wallet
+    if (!publicKey) {
+      console.log('⚠️ Wallet no conectado - funcionalidad blockchain limitada');
+    } else {
+      console.log('✅ Wallet conectado:', publicKey.toString());
+    }
+  }, [publicKey]);
 
   useEffect(() => {
     const fetchCommunityData = async () => {
@@ -269,19 +283,127 @@ export default function CommunityDetailPage() {
 
     setIsJoining(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // 1. Verificar que el wallet está conectado
+      if (!publicKey) {
+        alert('Por favor conecta tu wallet primero');
+        return;
+      }
+
+      console.log('🤝 Iniciando proceso de unión a comunidad...');
+      console.log('📍 Community ID:', communityId);
+      console.log('👤 User wallet:', publicKey.toString());
+
+      // 2. PASO 1: Obtener PDAs del backend (NO crea membresía)
+      console.log('🔄 Paso 1: Obteniendo PDAs del backend...');
+      const joinResponse = await fetch('http://localhost:3001/api/communities/join', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          communityId: Number(communityId),
+          userWallet: publicKey.toString()
+        })
+      });
+
+      if (!joinResponse.ok) {
+        const errorData = await joinResponse.json();
+        console.error('❌ Error API backend (paso 1):', errorData);
+        throw new Error(errorData.message || 'Error al obtener PDAs');
+      }
+
+      const joinResult = await joinResponse.json();
+      console.log('✅ PDAs obtenidos:', joinResult);
+
+      // 3. PASO 2: Ejecutar transacción blockchain
+      console.log('🔐 Paso 2: Ejecutando transacción blockchain...');
+      const { blockchain } = joinResult.data;
       
+      if (!blockchain || !blockchain.pdas) {
+        throw new Error('Backend no devolvió PDAs válidos');
+      }
+
+      // Convertir PDAs string a PublicKey
+      const communityPda = new PublicKey(blockchain.pdas.community);
+      const userPda = new PublicKey(blockchain.pdas.user);
+      const membershipPda = new PublicKey(blockchain.pdas.membership);
+
+      console.log('📝 PDAs convertidos:');
+      console.log('- Community PDA:', communityPda.toString());
+      console.log('- User PDA:', userPda.toString());
+      console.log('- Membership PDA:', membershipPda.toString());
+
+      // Ejecutar transacción en smart contract
+      if (!joinCommunity) {
+        throw new Error('Hook de smart contract no disponible');
+      }
+
+      console.log('⚠️  Esto requerirá FIRMA de tu wallet');
+      const blockchainResult = await joinCommunity(communityPda);
+      
+      console.log('🎉 Transacción blockchain exitosa:', blockchainResult);
+
+      // 4. PASO 3: Confirmar membresía en backend
+      console.log('🔄 Paso 3: Confirmando membresía en backend...');
+      const confirmResponse = await fetch('http://localhost:3001/api/communities/join/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          communityId: Number(communityId),
+          userWallet: publicKey.toString(),
+          transactionSignature: blockchainResult.transaction
+        })
+      });
+
+      if (!confirmResponse.ok) {
+        const errorData = await confirmResponse.json();
+        console.error('❌ Error API backend (paso 3):', errorData);
+        throw new Error(errorData.message || 'Error confirmando membresía');
+      }
+
+      const confirmResult = await confirmResponse.json();
+      console.log('✅ Membresía confirmada:', confirmResult);
+
+      // 5. Actualizar estado local del frontend
       setCommunity(prev => prev ? {
         ...prev,
         isJoined: true,
         userRole: 'Member',
-        memberCount: prev.memberCount + 1
+        memberCount: prev.memberCount + 1,
+        stats: {
+          ...prev.stats,
+          totalMembers: prev.stats.totalMembers + 1
+        }
       } : null);
 
-      alert('¡Te has unido a la comunidad exitosamente!');
-    } catch (error) {
-      console.error('Error joining community:', error);
-      alert('Error al unirse a la comunidad. Intenta de nuevo.');
+      // 6. Mostrar resultado exitoso
+      const message = confirmResult.data.membership.role === 'PENDING' 
+        ? '✅ Solicitud enviada! Tu membresía está pendiente de aprobación.'
+        : '🎉 ¡Te has unido a la comunidad exitosamente!';
+      
+      alert(`${message}\n\nTransacción blockchain: ${blockchainResult.transaction}`);
+      
+    } catch (error: any) {
+      console.error('❌ Error completo al unirse:', error);
+      
+      // Manejo de errores específicos
+      if (error.message.includes('User rejected')) {
+        alert('❌ Transacción cancelada por el usuario');
+      } else if (error.message.includes('insufficient funds')) {
+        alert('❌ Fondos insuficientes para pagar la transacción');
+      } else if (error.message.includes('ALREADY_MEMBER')) {
+        alert('⚠️ Ya eres miembro de esta comunidad');
+      } else if (error.message.includes('wallet')) {
+        alert('❌ Error de wallet. Verifica que esté conectado correctamente');
+      } else if (error.message.includes('PDAs')) {
+        alert('❌ Error obteniendo información blockchain. Verifica que el backend esté corriendo');
+      } else if (error.message.includes('confirmando')) {
+        alert('❌ Transacción blockchain exitosa pero error confirmando en base de datos. Contacta soporte.');
+      } else {
+        alert(`❌ Error al unirse a la comunidad: ${error.message}`);
+      }
     } finally {
       setIsJoining(false);
     }
@@ -440,7 +562,14 @@ export default function CommunityDetailPage() {
             </div>
 
             <div className="flex flex-col space-y-2">
-              {community.isJoined ? (
+              {!publicKey ? (
+                <button
+                  disabled
+                  className="bg-gray-400 text-white px-4 py-2 rounded-md cursor-not-allowed flex items-center space-x-2"
+                >
+                  <span>⚠️ Conecta tu wallet</span>
+                </button>
+              ) : community.isJoined ? (
                 <>
                   {community.userRole && (
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRoleColor(community.userRole)}`}>
@@ -476,7 +605,9 @@ export default function CommunityDetailPage() {
                   ) : (
                     <>
                       <UserPlus className="w-4 h-4" />
-                      <span>Join Community</span>
+                      <span>
+                        {community.requiresApproval ? 'Request to Join' : 'Join Community'}
+                      </span>
                     </>
                   )}
                 </button>

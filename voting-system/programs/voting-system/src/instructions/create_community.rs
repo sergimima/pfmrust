@@ -3,7 +3,7 @@ use crate::state::*;
 use crate::errors::*;
 
 #[derive(Accounts)]
-#[instruction(name: String, category: u8, quorum_percentage: u8)]
+#[instruction(name: String, category: u8, quorum_percentage: u8, requires_approval: bool)]
 pub struct CreateCommunity<'info> {
     #[account(
         init,
@@ -25,6 +25,7 @@ pub fn create_community(
     name: String,
     category: u8,
     quorum_percentage: u8,
+    requires_approval: bool,
 ) -> Result<()> {
     require!(name.len() <= 50, VotingSystemError::NameTooLong);
     require!(quorum_percentage > 0 && quorum_percentage <= 100, VotingSystemError::InvalidQuorum);
@@ -42,6 +43,7 @@ pub fn create_community(
     community.fee_collected = 0;
     community.created_at = clock.unix_timestamp;
     community.is_active = true;
+    community.requires_approval = requires_approval;
     community.bump = ctx.bumps.community;
     
     msg!("Community '{}' created by {}", community.name, community.authority);
