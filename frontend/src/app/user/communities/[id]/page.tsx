@@ -7,6 +7,7 @@ import {
   ArrowLeft, Users, Hash, Calendar, Shield, Globe, MessageSquare, 
   UserPlus, UserMinus, Settings, Flag, Share2, Trophy, TrendingUp 
 } from 'lucide-react';
+import { apiClient } from '@/lib/api';
 
 interface CommunityDetails {
   id: string;
@@ -177,14 +178,91 @@ export default function CommunityDetailPage() {
   const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
-    // Simular carga de datos
-    setTimeout(() => {
-      setCommunity(getMockCommunity(communityId));
-      setVotings(getMockVotings(communityId));
-      setMembers(getMockMembers());
-      setLoading(false);
-    }, 500);
-  }, [communityId]);
+    const fetchCommunityData = async () => {
+      setLoading(true);
+      try {
+        // Obtener datos de la comunidad
+        const communityResponse = await apiClient.getCommunity(communityId);
+        
+        if (communityResponse.data) {
+          // Transformar los datos al formato esperado
+          const communityData: CommunityDetails = {
+            id: communityResponse.data.id.toString(),
+            name: communityResponse.data.name,
+            description: communityResponse.data.description,
+            category: communityResponse.data.category || 'General',
+            memberCount: communityResponse.data.memberCount || 0,
+            activeVotings: communityResponse.data.activeVotings || 0,
+            totalVotings: communityResponse.data.totalVotings || 0,
+            isJoined: communityResponse.data.isJoined || false,
+            userRole: communityResponse.data.userRole || null,
+            tags: communityResponse.data.tags || [],
+            createdAt: communityResponse.data.createdAt,
+            admin: communityResponse.data.admin || 'Unknown',
+            moderators: communityResponse.data.moderators || [],
+            isPrivate: communityResponse.data.isPrivate || false,
+            requiresApproval: communityResponse.data.requiresApproval || false,
+            minReputationToJoin: communityResponse.data.minReputationToJoin || 0,
+            rules: communityResponse.data.rules || '',
+            socialLinks: communityResponse.data.socialLinks || {},
+            stats: communityResponse.data.stats || {
+              totalMembers: communityResponse.data.memberCount || 0,
+              activeMembers: 0,
+              completedVotings: 0,
+              avgParticipation: 0
+            }
+          };
+          setCommunity(communityData);
+          
+          // Intentar obtener votaciones relacionadas con esta comunidad
+          try {
+            const votingsResponse = await apiClient.getVotes({ communityId });
+            if (votingsResponse.data && Array.isArray(votingsResponse.data)) {
+              const votingsData: VotingPreview[] = votingsResponse.data.map(voting => ({
+                id: voting.id.toString(),
+                title: voting.title,
+                type: voting.type as 'Opinion' | 'Knowledge',
+                status: voting.status as 'Active' | 'Completed' | 'Failed',
+                timeLeft: voting.timeLeft || 'Finalizado',
+                participants: voting.participants || 0,
+                quorumReached: voting.quorumReached || false,
+                userVoted: voting.userVoted || false,
+                priority: voting.priority as 'high' | 'medium' | 'low'
+              }));
+              setVotings(votingsData);
+            }
+          } catch (error) {
+            console.error('Error al obtener votaciones:', error);
+            // Fallback a datos vacíos si hay error
+            setVotings([]);
+          }
+          
+          // Intentar obtener miembros de la comunidad
+          try {
+            // Aquí iría la llamada a un endpoint para obtener miembros
+            // Por ahora usamos datos mock como fallback
+            setMembers(getMockMembers());
+          } catch (error) {
+            console.error('Error al obtener miembros:', error);
+            setMembers([]);
+          }
+        } else {
+          // Si no hay datos, redirigir a la página de comunidades
+          router.push('/user/communities');
+        }
+      } catch (error) {
+        console.error('Error al obtener datos de la comunidad:', error);
+        // Si hay error, usar datos mock como fallback
+        setCommunity(getMockCommunity(communityId));
+        setVotings(getMockVotings(communityId));
+        setMembers(getMockMembers());
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchCommunityData();
+  }, [communityId, router]);
 
   const handleJoinCommunity = async () => {
     if (!community) return;

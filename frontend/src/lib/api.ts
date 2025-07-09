@@ -66,6 +66,11 @@ export const apiClient = {
     return response.data;
   },
 
+  createCommunity: async (data: any): Promise<ApiResponse<any>> => {
+    const response = await api.post('/communities', data);
+    return response.data;
+  },
+
   // Votes
   getVotes: async (params?: any): Promise<ApiResponse<any[]>> => {
     const response = await api.get('/votes', { params });

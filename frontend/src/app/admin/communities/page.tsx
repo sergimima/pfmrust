@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { apiClient } from '@/lib/api';
 import { formatNumber, formatRelativeTime, capitalize } from '@/lib/utils';
 import type { Community } from '@/types';
@@ -75,9 +76,9 @@ export default function CommunitiesDashboard() {
             <h1 className="text-3xl font-bold text-gray-900">Communities Dashboard</h1>
             <p className="text-gray-600">Manage and monitor all communities</p>
           </div>
-          <button className="btn-primary">
+          <Link href="/user/communities/create" className="btn-primary">
             ➕ Create Community
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -253,13 +254,29 @@ export default function CommunitiesDashboard() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900">
+                      <Link 
+                        href={`/admin/communities/${community.id}`} 
+                        className="text-blue-600 hover:text-blue-900"
+                      >
                         👁️ View
-                      </button>
-                      <button className="text-gray-600 hover:text-gray-900">
+                      </Link>
+                      <Link 
+                        href={`/admin/communities/${community.id}/edit`} 
+                        className="text-gray-600 hover:text-gray-900"
+                      >
                         ✏️ Edit
-                      </button>
-                      <button className="text-red-600 hover:text-red-900">
+                      </Link>
+                      <button 
+                        onClick={() => {
+                          if (confirm(`¿Estás seguro de que deseas eliminar la comunidad "${community.name}"?`)) {
+                            // Aquí iría la lógica para eliminar la comunidad
+                            console.log(`Eliminar comunidad ${community.id}`);
+                            // Por ahora solo mostramos un mensaje
+                            alert('Funcionalidad de eliminación no implementada aún');
+                          }
+                        }} 
+                        className="text-red-600 hover:text-red-900"
+                      >
                         🗑️ Delete
                       </button>
                     </div>

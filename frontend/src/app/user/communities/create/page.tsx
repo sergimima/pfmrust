@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Users, Settings, Globe, CheckCircle, Info, AlertTriangle } from 'lucide-react';
+import { apiClient } from '@/lib/api';
 
 // Categorías disponibles para comunidades
 const categories = [
@@ -144,16 +145,29 @@ export default function CreateCommunityPage() {
     setIsSubmitting(true);
     
     try {
-      // Simulación de llamada a smart contract
-      console.log('Creating community with data:', formData);
+      // Preparar los datos para el backend
+      const communityData = {
+        name: formData.name,
+        description: formData.description,
+        adminPubkey: mockUserData.wallet, // En producción, usar la wallet conectada
+        category: formData.category.toUpperCase(),
+        requiresApproval: formData.requiresApproval,
+        votingFee: 0, // Por ahora, sin fee
+        rules: formData.rules,
+        tags: formData.tags,
+        website: formData.website,
+        socialLinks: {
+          discord: formData.discord,
+          twitter: formData.twitter
+        }
+      };
       
-      // En producción aquí iría:
-      // 1. Conectar con wallet Solana
-      // 2. Llamar a create_community() del smart contract
-      // 3. Manejar transaction y confirmación
+      console.log('Creating community with data:', communityData);
       
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simular delay
+      // Llamar al endpoint del backend
+      const response = await apiClient.createCommunity(communityData);
       
+      console.log('Community created successfully:', response);
       alert('¡Comunidad creada exitosamente!');
       router.push('/user/communities');
       

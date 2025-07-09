@@ -251,4 +251,101 @@ router.get('/:id',
   res.json(apiResponse(mockCommunity, 'Community retrieved successfully (mock data)'));
 }));
 
+/**
+ * POST /api/communities
+ * Crear una nueva comunidad
+ */
+router.post('/',
+  handleAsync(async (req: Request, res: Response) => {
+  const { 
+    name, 
+    description, 
+    adminPubkey,
+    category = 'GENERAL',
+    requiresApproval = false,
+    votingFee = 0,
+    rules,
+    tags = [],
+    avatarUrl,
+    bannerUrl,
+    website,
+    socialLinks
+  } = req.body;
+
+  // Validar campos requeridos
+  if (!name || !adminPubkey) {
+    return res.status(400).json(apiResponse(null, 'Nombre y adminPubkey son campos requeridos', null, 'VALIDATION_ERROR'));
+  }
+
+  try {
+    // Crear la comunidad y sus metadatos en una transacción
+    const result = await prisma.$transaction(async (prisma) => {
+      // Generar un ID único para la comunidad (simulando un ID de blockchain)
+      const newId = BigInt(Date.now());
+      
+      // Crear la comunidad principal
+      const community = await prisma.community.create({
+        data: {
+          id: newId,
+          name,
+          adminPubkey,
+          votingFee: BigInt(votingFee),
+          isActive: true,
+          memberCount: 1, // El creador es el primer miembro
+        }
+      });
+
+      // Crear los metadatos de la comunidad
+      const metadata = await prisma.communityMetadata.create({
+        data: {
+          communityId: community.id,
+          description,
+          category: category as string,
+          requiresApproval: requiresApproval as unknown as boolean,
+          rules,
+          tags,
+          avatarUrl,
+          bannerUrl,
+          website,
+          socialLinks: socialLinks || {}
+        }
+      });
+
+      // Invalidar la caché de comunidades
+      invalidateCache({ namespace: 'communities', tags: ['communities', 'listings'] });
+
+      // Devolver la comunidad creada con sus metadatos
+      return {
+        community,
+        metadata
+      };
+    });
+
+    // Formatear la respuesta
+    const formattedCommunity = {
+      id: Number(result.community.id),
+      name: result.community.name,
+      description: result.metadata.description || '',
+      authority: result.community.adminPubkey,
+      category: result.metadata.category || 'GENERAL',
+      isActive: result.community.isActive,
+      totalMembers: result.community.memberCount,
+      totalVotes: 0,
+      feesCollected: Number(result.community.totalFeesCollected),
+      requiresApproval: result.metadata.requiresApproval as unknown as boolean,
+      createdAt: result.community.createdAt,
+      updatedAt: result.community.lastSynced,
+      _count: { 
+        memberships: result.community.memberCount, 
+        votes: 0 
+      }
+    };
+
+    return res.status(201).json(apiResponse(formattedCommunity, 'Comunidad creada exitosamente'));
+  } catch (error) {
+    console.error('Error al crear la comunidad:', error);
+    return res.status(500).json(apiResponse(null, 'Error al crear la comunidad', null, 'SERVER_ERROR'));
+  }
+}));
+
 export default router;

@@ -7,6 +7,8 @@ import CategoryFilter from '@/components/user/categories/CategoryFilter';
 import CommunityGrid from '@/components/user/categories/CommunityGrid';
 import SearchBar from '@/components/user/categories/SearchBar';
 import SortOptions from '@/components/user/categories/SortOptions';
+import { apiClient } from '@/lib/api';
+import { formatRelativeTime } from '@/lib/utils';
 
 interface Community {
   id: string;
@@ -24,19 +26,20 @@ interface Community {
 }
 
 const categories = [
-  { id: 'all', name: 'All Categories', icon: '🌐', count: 156 },
-  { id: 'technology', name: 'Technology', icon: '💻', count: 45 },
-  { id: 'finance', name: 'Finance', icon: '💰', count: 34 },
+  { id: 'all', name: 'Todas las Categorías', icon: '🌐', count: 156 },
+  { id: 'technology', name: 'Tecnología', icon: '💻', count: 45 },
+  { id: 'finance', name: 'Finanzas', icon: '💰', count: 34 },
   { id: 'gaming', name: 'Gaming', icon: '🎮', count: 28 },
-  { id: 'art', name: 'Art & Creative', icon: '🎨', count: 23 },
-  { id: 'education', name: 'Education', icon: '📚', count: 19 },
-  { id: 'sports', name: 'Sports', icon: '⚽', count: 15 },
-  { id: 'music', name: 'Music', icon: '🎵', count: 12 },
-  { id: 'science', name: 'Science', icon: '🔬', count: 10 },
-  { id: 'politics', name: 'Politics', icon: '🏛️', count: 8 },
+  { id: 'art', name: 'Arte y Creatividad', icon: '🎨', count: 23 },
+  { id: 'education', name: 'Educación', icon: '📚', count: 19 },
+  { id: 'sports', name: 'Deportes', icon: '⚽', count: 15 },
+  { id: 'music', name: 'Música', icon: '🎵', count: 12 },
+  { id: 'science', name: 'Ciencia', icon: '🔬', count: 10 },
+  { id: 'politics', name: 'Política', icon: '🏛️', count: 8 },
   { id: 'general', name: 'General', icon: '💬', count: 26 }
 ];
 
+// Mantenemos los datos mock como fallback
 const mockCommunities: Community[] = [
   {
     id: '1',
@@ -122,72 +125,97 @@ export default function CommunitiesPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  const [communities, setCommunities] = useState<Community[]>(mockCommunities);
-  const [filteredCommunities, setFilteredCommunities] = useState<Community[]>(mockCommunities);
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [filteredCommunities, setFilteredCommunities] = useState<Community[]>([]);
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'all');
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'members');
   const [loading, setLoading] = useState(false);
 
-  // Update URL when filters change
+  // Fetch communities from backend
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (selectedCategory !== 'all') params.set('category', selectedCategory);
-    if (searchQuery) params.set('search', searchQuery);
-    if (sortBy !== 'members') params.set('sort', sortBy);
-    
-    const queryString = params.toString();
-    const newUrl = queryString ? `/user/communities?${queryString}` : '/user/communities';
-    router.replace(newUrl);
-  }, [selectedCategory, searchQuery, sortBy, router]);
+    const fetchCommunities = async () => {
+      setIsLoading(true);
+      try {
+        const response = await apiClient.getCommunities();
+        const transformedCommunities: Community[] = response.data.map((community: any) => ({
+          id: community.id.toString(),
+          name: community.name,
+          description: community.description,
+          category: community.category.toLowerCase(),
+          memberCount: community.totalMembers || 0,
+          activeVotings: community.totalVotes || 0,
+          isJoined: false, // Por defecto, asumimos que no estamos unidos
+          tags: community.tags || [],
+          lastActivity: formatRelativeTime(community.updatedAt),
+          createdAt: community.createdAt,
+          admin: community.authority
+        }));
 
-  // Filter and sort communities
+        setCommunities(transformedCommunities);
+      } catch (err) {
+        console.error('Error fetching communities:', err);
+        setError('No se pudieron cargar las comunidades. Por favor, inténtalo de nuevo más tarde.');
+        // Fallback a datos mock solo si no hay datos reales
+        setCommunities(mockCommunities);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCommunities();
+  }, []);
+
   useEffect(() => {
     let filtered = [...communities];
 
-    // Filter by category
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(community => community.category === selectedCategory);
     }
 
-    // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(community => 
+      filtered = filtered.filter(community =>
         community.name.toLowerCase().includes(query) ||
         community.description.toLowerCase().includes(query) ||
-        community.tags.some(tag => tag.toLowerCase().includes(query))
+        (community.tags && community.tags.some(tag => tag.toLowerCase().includes(query)))
       );
     }
 
-    // Sort communities
     filtered.sort((a, b) => {
       switch (sortBy) {
-        case 'members':
-          return b.memberCount - a.memberCount;
-        case 'activity':
-          return new Date(b.lastActivity).getTime() - new Date(a.lastActivity).getTime();
         case 'newest':
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        case 'votings':
+        case 'activity':
+          return a.lastActivity.localeCompare(b.lastActivity);
+        case 'votes':
           return b.activeVotings - a.activeVotings;
-        case 'name':
-          return a.name.localeCompare(b.name);
+        case 'members':
         default:
-          return 0;
+          return b.memberCount - a.memberCount;
       }
     });
 
     setFilteredCommunities(filtered);
-  }, [communities, selectedCategory, searchQuery, sortBy]);
+
+    const params = new URLSearchParams();
+    if (selectedCategory !== 'all') params.set('category', selectedCategory);
+    if (searchQuery) params.set('search', searchQuery);
+    if (sortBy !== 'members') params.set('sort', sortBy);
+
+    const newUrl = params.toString() ? `?${params.toString()}` : '';
+    router.replace(`/user/communities${newUrl}`, { scroll: false });
+  }, [communities, selectedCategory, searchQuery, sortBy, router]);
 
   const handleJoinCommunity = async (communityId: string) => {
     setLoading(true);
     try {
       // TODO: Call smart contract join_community()
-      setCommunities(prev => 
-        prev.map(community => 
-          community.id === communityId 
+      setCommunities(prev =>
+        prev.map(community =>
+          community.id === communityId
             ? { ...community, isJoined: true, memberCount: community.memberCount + 1 }
             : community
         )

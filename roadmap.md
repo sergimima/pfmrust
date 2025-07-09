@@ -422,3 +422,20 @@ Super Admin: GJENwjwdh7rAcZyrYh76SDjwgYrhncfhQKaMNGfSHirw
 **Recomendación:** Los smart contracts están suficientemente maduros para comenzar backend.
 
 
+Endpoints missing:
+
+Endpoints para Comunidades:
+POST /api/communities - Para crear nuevas comunidades hecho
+PUT /api/communities/:id - Para actualizar comunidades existentes
+DELETE /api/communities/:id - Para eliminar comunidades
+Endpoints para Votaciones:
+POST /api/votes - Para crear nuevas votaciones
+PUT /api/votes/:id - Para actualizar votaciones existentes
+DELETE /api/votes/:id - Para eliminar votaciones
+POST /api/votes/:id/cast - Para emitir un voto
+Endpoints para Usuarios:
+POST /api/users - Para crear nuevos usuarios
+PUT /api/users/:wallet - Para actualizar usuarios existentes
+Endpoints para Membresías:
+POST /api/communities/:id/members - Para unirse a una comunidad
+DELETE /api/communities/:id/members/:wallet - Para abandonar una comunidad

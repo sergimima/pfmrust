@@ -43,6 +43,14 @@ export interface Community {
   requiresApproval: boolean;
   createdAt: string;
   updatedAt: string;
+  rules?: string;
+  tags?: string[];
+  website?: string;
+  socialLinks?: {
+    discord?: string;
+    twitter?: string;
+    [key: string]: string | undefined;
+  };
 }
 
 // Vote types
