@@ -314,4 +314,376 @@ router.get('/:id',
   res.json(apiResponse(mockVote, 'Vote retrieved successfully (mock data)'));
 }));
 
+/**
+ * POST /api/votes
+ * Crear una nueva votación
+ */
+router.post('/',
+  handleAsync(async (req: Request, res: Response) => {
+  const { 
+    question, 
+    description, 
+    communityId,
+    creatorPubkey,
+    voteType = 'OPINION',
+    options = [],
+    quorum = 0,
+    deadline,
+    tags = []
+  } = req.body;
+
+  // Validar campos requeridos
+  if (!question || !communityId || !creatorPubkey || !deadline) {
+    return res.status(400).json(apiResponse(null, 'question, communityId, creatorPubkey y deadline son campos requeridos', null, 'VALIDATION_ERROR'));
+  }
+
+  try {
+    // 1. Verificar que la comunidad existe
+    const community = await prisma.community.findUnique({
+      where: {
+        id: BigInt(communityId)
+      }
+    });
+
+    if (!community) {
+      return res.status(404).json(apiResponse(null, 'Comunidad no encontrada', null, 'NOT_FOUND'));
+    }
+
+    // 2. Verificar que el creador es miembro de la comunidad
+    // Primero obtener el ID del usuario por su wallet
+    const creator = await prisma.user.findFirst({
+      where: {
+        pubkey: creatorPubkey
+      }
+    });
+    
+    if (!creator) {
+      return res.status(404).json(apiResponse(null, 'Usuario creador no encontrado', null, 'NOT_FOUND'));
+    }
+    
+    const membership = await prisma.membership.findFirst({
+      where: {
+        communityId: BigInt(communityId),
+        userId: creator.id,
+        isActive: true
+      }
+    });
+
+    if (!membership) {
+      return res.status(403).json(apiResponse(null, 'El creador debe ser miembro activo de la comunidad', null, 'NOT_MEMBER'));
+    }
+
+    // 3. Interacción con blockchain (derivar PDAs necesarios)
+    const { PublicKey } = require('@solana/web3.js');
+    const PROGRAM_ID = new PublicKey('98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z');
+    
+    // Derivar PDA para la comunidad
+    const communityAdminPubkey = new PublicKey(community.adminPubkey);
+    const [communityPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('community'),
+        communityAdminPubkey.toBuffer(),
+        Buffer.from(community.name)
+      ],
+      PROGRAM_ID
+    );
+    
+    // Derivar PDA para el creador
+    const creatorPubkeyObj = new PublicKey(creatorPubkey);
+    
+    // Derivar PDA para la votación
+    const [votePda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('vote'),
+        communityPda.toBuffer(),
+        creatorPubkeyObj.toBuffer()
+      ],
+      PROGRAM_ID
+    );
+
+    // 4. Crear la votación en la base de datos
+    const result = await prisma.$transaction(async (prisma) => {
+      // Generar un ID único para la votación
+      const newId = BigInt(Date.now());
+      
+      // Crear la votación principal
+      const voting = await prisma.voting.create({
+        data: {
+          id: newId,
+          communityId: BigInt(communityId),
+          question,
+          creatorPubkey: creatorPubkey,
+          quorum,
+          deadline: new Date(deadline),
+          totalVotes: 0,
+          createdAt: new Date(),
+          status: 'ACTIVE', // Estado por defecto
+          votingType: 'OPINION' // Tipo por defecto
+        }
+      });
+
+      // Crear los metadatos de la votación
+      const metadata = await prisma.votingMetadata.create({
+        data: {
+          votingId: voting.id,
+          description,
+          voteType,
+          options,
+          results: new Array(options.length).fill(0),
+          tags,
+          category: 'GENERAL' // Categoría por defecto
+        }
+      });
+
+      return {
+        voting,
+        metadata
+      };
+    });
+
+    // 5. Invalidar caché
+    invalidateCache({ namespace: 'votes', tags: ['votes', 'listings'] });
+    invalidateCache({ namespace: 'communities', tags: ['community-details'], keys: [`community:${communityId}`] });
+
+    // 6. Formatear la respuesta
+    const formattedVoting = {
+      id: Number(result.voting.id),
+      question: result.voting.question,
+      description: result.metadata.description,
+      communityId: Number(result.voting.communityId),
+      creator: result.voting.creatorPubkey,
+      voteType: result.metadata.voteType,
+      status: 'ACTIVE',
+      options: result.metadata.options,
+      results: result.metadata.results,
+      totalParticipants: 0,
+      quorum: result.voting.quorum,
+      deadline: result.voting.deadline,
+      createdAt: result.voting.createdAt,
+      blockchain: {
+        programId: PROGRAM_ID.toString(),
+        network: 'devnet',
+        pdas: {
+          community: communityPda.toString(),
+          vote: votePda.toString()
+        },
+        requiresOnChainAction: true,
+        instructions: [
+          'create_voting' // Instrucción que debe ejecutarse en el frontend
+        ]
+      }
+    };
+
+    return res.status(201).json(apiResponse(formattedVoting, 'Votación creada exitosamente'));
+  } catch (error) {
+    console.error('Error al crear la votación:', error);
+    return res.status(500).json(apiResponse(null, 'Error al crear la votación', null, 'SERVER_ERROR'));
+  }
+}));
+
+/**
+ * POST /api/votes/:id/vote
+ * Emitir un voto en una votación específica
+ */
+router.post('/:id/vote',
+  handleAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { 
+    voterWallet, 
+    choice,
+    signature = null // Firma opcional para verificación
+  } = req.body;
+
+  // Validar campos requeridos
+  if (!voterWallet || choice === undefined) {
+    return res.status(400).json(apiResponse(null, 'voterWallet y choice son campos requeridos', null, 'VALIDATION_ERROR'));
+  }
+
+  try {
+    // 1. Verificar que la votación existe y está activa
+    const voting = await prisma.voting.findUnique({
+      where: {
+        id: BigInt(id)
+      },
+      include: {
+        community: true,
+        metadata: true
+      }
+    });
+
+    if (!voting) {
+      return res.status(404).json(apiResponse(null, 'Votación no encontrada', null, 'NOT_FOUND'));
+    }
+
+    // Verificar si la votación está activa
+    const now = new Date();
+    if (voting.deadline <= now) {
+      return res.status(400).json(apiResponse(null, 'La votación ha finalizado', null, 'VOTING_CLOSED'));
+    }
+
+    // 2. Verificar que el usuario es miembro de la comunidad
+    const userCheck = await prisma.user.findFirst({
+      where: {
+        pubkey: voterWallet
+      }
+    });
+    
+    if (!userCheck) {
+      return res.status(403).json(apiResponse(null, 'Usuario no encontrado', null, 'NOT_FOUND'));
+    }
+    
+    const membership = await prisma.membership.findFirst({
+      where: {
+        communityId: voting.communityId,
+        userId: userCheck.id,
+        isActive: true
+      }
+    });
+
+    if (!membership) {
+      return res.status(403).json(apiResponse(null, 'El votante debe ser miembro activo de la comunidad', null, 'NOT_MEMBER'));
+    }
+
+    // 3. Verificar que el votante no ha votado anteriormente
+    // Ya tenemos el ID del usuario de la verificación anterior
+    const userId = userCheck.id;
+    
+    const existingVote = await prisma.participation.findFirst({
+      where: {
+        votingId: BigInt(id),
+        userId: userId
+      }
+    });
+
+    if (existingVote) {
+      return res.status(400).json(apiResponse(null, 'El usuario ya ha votado en esta votación', null, 'ALREADY_VOTED'));
+    }
+
+    // 4. Interacción con blockchain (derivar PDAs necesarios)
+    const { PublicKey } = require('@solana/web3.js');
+    const PROGRAM_ID = new PublicKey('98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z');
+    
+    // Derivar PDA para la comunidad
+    const communityAdminPubkey = new PublicKey(voting.community.adminPubkey);
+    const [communityPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('community'),
+        communityAdminPubkey.toBuffer(),
+        Buffer.from(voting.community.name)
+      ],
+      PROGRAM_ID
+    );
+    
+    // Derivar PDA para la votación
+    const creatorPubkey = new PublicKey(voting.creatorPubkey);
+    const [votePda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('vote'),
+        communityPda.toBuffer(),
+        creatorPubkey.toBuffer()
+      ],
+      PROGRAM_ID
+    );
+    
+    // Derivar PDA para el votante
+    const voterPubkey = new PublicKey(voterWallet);
+    const [userPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('user'), voterPubkey.toBuffer()],
+      PROGRAM_ID
+    );
+    
+    // Derivar PDA para la participación
+    const [participationPda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from('participation'),
+        votePda.toBuffer(),
+        voterPubkey.toBuffer()
+      ],
+      PROGRAM_ID
+    );
+
+    // 5. Registrar el voto en la base de datos
+    const result = await prisma.$transaction(async (prisma) => {
+      // Crear la participación
+      const participation = await prisma.participation.create({
+        data: {
+          votingId: BigInt(id),
+          userId: userId,
+          optionSelected: choice,
+          votedAt: new Date()
+        }
+      });
+
+      // Actualizar los resultados de la votación
+      const metadata = await prisma.votingMetadata.findUnique({
+        where: {
+          votingId: BigInt(id)
+        }
+      });
+
+      if (metadata) {
+        const results = [...(metadata.results || [])];
+        // Asegurarse de que el índice es válido
+        if (choice >= 0 && choice < results.length) {
+          results[choice] = (results[choice] || 0) + 1;
+          
+          await prisma.votingMetadata.update({
+            where: {
+              votingId: BigInt(id)
+            },
+            data: {
+              results
+            }
+          });
+        }
+      }
+
+      // Incrementar el contador de votos totales
+      await prisma.voting.update({
+        where: {
+          id: BigInt(id)
+        },
+        data: {
+          totalVotes: {
+            increment: 1
+          }
+        }
+      });
+
+      return { participation };
+    });
+
+    // 6. Invalidar caché
+    invalidateCache({ namespace: 'votes', tags: ['votes', 'listings'] });
+    invalidateCache({ namespace: 'votes', tags: ['vote-details'], keys: [`vote:${id}`] });
+
+    // 7. Respuesta con información de blockchain
+    return res.status(201).json(apiResponse({
+      vote: {
+        votingId: Number(id),
+        voterWallet,
+        choice,
+        votedAt: new Date()
+      },
+      blockchain: {
+        programId: PROGRAM_ID.toString(),
+        network: 'devnet',
+        pdas: {
+          community: communityPda.toString(),
+          vote: votePda.toString(),
+          user: userPda.toString(),
+          participation: participationPda.toString()
+        },
+        requiresOnChainAction: true,
+        instructions: [
+          'cast_vote' // Instrucción que debe ejecutarse en el frontend
+        ]
+      }
+    }, 'Voto emitido exitosamente'));
+  } catch (error) {
+    console.error('Error al emitir el voto:', error);
+    return res.status(500).json(apiResponse(null, 'Error al emitir el voto', null, 'SERVER_ERROR'));
+  }
+}));
+
 export default router;

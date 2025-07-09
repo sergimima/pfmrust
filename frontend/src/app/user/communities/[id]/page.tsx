@@ -227,7 +227,7 @@ export default function CommunityDetailPage() {
                 participants: voting.participants || 0,
                 quorumReached: voting.quorumReached || false,
                 userVoted: voting.userVoted || false,
-                priority: voting.priority as 'high' | 'medium' | 'low'
+                priority: (voting.priority || 'medium') as 'high' | 'medium' | 'low'
               }));
               setVotings(votingsData);
             }
@@ -613,7 +613,7 @@ export default function CommunityDetailPage() {
                           {voting.status}
                         </span>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(voting.priority)}`}>
-                          {voting.priority.toUpperCase()}
+                          {(voting.priority || 'medium').toUpperCase()}
                         </span>
                         <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
                           {voting.type}

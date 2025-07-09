@@ -1,19 +1,71 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, X, Clock, Users, Hash, AlertCircle, CheckCircle, Info } from 'lucide-react';
 
-// Simulación de datos - en producción vendría del backend/blockchain
+// Simulación de datos de usuario - en producción vendría del wallet
 const mockUserData = {
   reputation: 1250,
   level: 5,
   wallet: "GJENwjwdh7rAcZyrYh76SDjwgYrhncfhQKaMNGfSHirw"
 };
 
-const mockCommunities = [
-  { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true },
-  { id: 2, name: "DeFi Discussion", category: "Finance", members: 890, isActive: true },
-  { id: 3, name: "Gaming Hub", category: "Gaming", members: 2100, isActive: true },
-  { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true }
-];
+// Hook para obtener comunidades reales
+const useCommunities = () => {
+  const [communities, setCommunities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchCommunities = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('http://localhost:3001/api/communities?isActive=true');
+        
+        if (!response.ok) {
+          throw new Error('Error fetching communities');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          // Transformar datos de API al formato esperado
+          const transformedCommunities = data.data.map(community => ({
+            id: community.id,
+            name: community.name,
+            category: community.metadata?.category || 'General',
+            members: community.memberCount || 0,
+            isActive: community.isActive
+          }));
+          setCommunities(transformedCommunities);
+        } else {
+          // Fallback a datos mock si la API falla
+          console.log('⚠️ API failed, using mock data');
+          setCommunities([
+            { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true },
+            { id: 2, name: "DeFi Discussion", category: "Finance", members: 890, isActive: true },
+            { id: 3, name: "Gaming Hub", category: "Gaming", members: 2100, isActive: true },
+            { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true }
+          ]);
+        }
+      } catch (err) {
+        console.error('Error fetching communities:', err);
+        setError(err.message);
+        // Fallback a datos mock en caso de error
+        setCommunities([
+          { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true },
+          { id: 2, name: "DeFi Discussion", category: "Finance", members: 890, isActive: true },
+          { id: 3, name: "Gaming Hub", category: "Gaming", members: 2100, isActive: true },
+          { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true }
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCommunities();
+  }, []);
+
+  return { communities, loading, error };
+};
 
 const voteTypes = [
   { value: 'Opinion', label: 'Opinión', description: 'Votación subjetiva basada en preferencias' },
@@ -49,6 +101,8 @@ interface FormData {
 }
 
 export default function CreateVoting() {
+  const { communities, loading: communitiesLoading, error: communitiesError } = useCommunities();
+  
   const [formData, setFormData] = useState<FormData>({
     community: '',
     title: '',
@@ -179,7 +233,7 @@ export default function CreateVoting() {
     }
   };
 
-  const selectedCommunity = mockCommunities.find(c => c.id === parseInt(formData.community));
+  const selectedCommunity = communities.find(c => c.id === parseInt(formData.community));
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white">
@@ -210,19 +264,37 @@ export default function CreateVoting() {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Comunidad *
           </label>
-          <select
-            value={formData.community}
-            onChange={(e) => handleInputChange('community', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">Selecciona una comunidad</option>
-            {mockCommunities.map(community => (
-              <option key={community.id} value={community.id}>
-                {community.name} ({community.members} miembros)
-              </option>
-            ))}
-          </select>
+          {communitiesLoading ? (
+            <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md bg-gray-50">
+              <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-gray-500">Cargando comunidades...</span>
+            </div>
+          ) : (
+            <select
+              value={formData.community}
+              onChange={(e) => handleInputChange('community', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Selecciona una comunidad</option>
+              {communities.map(community => (
+                <option key={community.id} value={community.id}>
+                  {community.name} ({community.members} miembros)
+                </option>
+              ))}
+            </select>
+          )}
+          
+          {communitiesError && (
+            <div className="mt-1 text-sm text-yellow-600 bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+              ⚠️ Error cargando comunidades: {communitiesError}. Usando datos de respaldo.
+            </div>
+          )}
+          
           {errors.community && <p className="text-red-500 text-sm mt-1">{errors.community}</p>}
+          
+          {communities.length === 0 && !communitiesLoading && (
+            <p className="text-gray-500 text-sm mt-1">No hay comunidades disponibles</p>
+          )}
         </div>
 
         {/* Título */}
