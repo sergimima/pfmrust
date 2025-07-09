@@ -44,7 +44,27 @@ export const useBlockchain = () => {
     try {
       console.log('🔍 Obteniendo PDAs para votación:', { votingId, voterWallet });
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/blockchain/voting-info`, {
+      // Verificar que los parámetros sean válidos
+      if (!votingId || !voterWallet) {
+        console.error('❌ votingId o voterWallet inválidos:', { votingId, voterWallet });
+        throw new Error('votingId y voterWallet son requeridos');
+      }
+      
+      // Verificar que el votingId sea un número válido para BigInt
+      try {
+        // Intentar convertir a BigInt para validar
+        BigInt(votingId);
+        console.log('✅ votingId es válido para BigInt:', votingId);
+      } catch (error) {
+        console.error('❌ votingId no es válido para BigInt:', { votingId, error });
+        throw new Error(`El ID de votación '${votingId}' no es un número válido`);
+      }
+
+      // Mostrar la URL completa para depuración
+      const url = `${API_CONFIG.BASE_URL}/blockchain/voting-info`;
+      console.log('🌐 Haciendo petición a:', url);
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -55,14 +75,28 @@ export const useBlockchain = () => {
         })
       });
 
-      const result = await response.json();
+      console.log('📡 Respuesta recibida:', { status: response.status, statusText: response.statusText });
 
-      if (!response.ok) {
-        throw new Error(result.error || `HTTP error! status: ${response.status}`);
+      // Intentar parsear la respuesta como JSON
+      let result;
+      try {
+        result = await response.json();
+        console.log('📊 Datos de respuesta:', result);
+      } catch (parseError: any) {
+        console.error('❌ Error parseando respuesta JSON:', parseError);
+        const text = await response.text();
+        console.error('📝 Contenido de respuesta:', text.substring(0, 200) + '...');
+        throw new Error(`Error parseando respuesta: ${parseError.message || 'Error desconocido'}`);
       }
 
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to get voting info');
+      if (!response.ok) {
+        console.error('❌ Respuesta no exitosa:', { status: response.status, error: result?.error });
+        throw new Error(result?.error || `HTTP error! status: ${response.status}`);
+      }
+
+      if (!result?.success) {
+        console.error('❌ Operación no exitosa:', { success: result?.success, error: result?.error });
+        throw new Error(result?.error || 'Failed to get voting info');
       }
 
       console.log('✅ PDAs obtenidos exitosamente:', result.data);
