@@ -1,5 +1,6 @@
-// Definir el IDL manualmente para evitar problemas de importación
+// IDL original restaurado - SIN tocar más
 export const IDL = {
+  "address": "98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z",
   "version": "0.1.0",
   "name": "voting_system",
   "instructions": [
@@ -185,9 +186,10 @@ export const IDL = {
       ]
     }
   ],
+  "types": [],
   "accounts": [
     {
-      "name": "User",
+      "name": "user",
       "type": {
         "kind": "struct",
         "fields": [
@@ -219,7 +221,7 @@ export const IDL = {
       }
     },
     {
-      "name": "Community",
+      "name": "community",
       "type": {
         "kind": "struct",
         "fields": [
@@ -251,7 +253,7 @@ export const IDL = {
       }
     },
     {
-      "name": "Membership",
+      "name": "membership",
       "type": {
         "kind": "struct",
         "fields": [
@@ -275,7 +277,7 @@ export const IDL = {
       }
     },
     {
-      "name": "Vote",
+      "name": "vote",
       "type": {
         "kind": "struct",
         "fields": [
@@ -323,7 +325,7 @@ export const IDL = {
       }
     },
     {
-      "name": "Participation",
+      "name": "participation",
       "type": {
         "kind": "struct",
         "fields": [
@@ -352,5 +354,27 @@ export const IDL = {
     }
   ]
 };
+
+// Tipos básicos para compatibilidad
+export interface UserAccount {
+  authority: string;
+  name: string;
+  email: string;
+  reputation: number;
+  joinedAt: string;
+  bump: number;
+}
+
+export interface VoteAccount {
+  community: string;
+  creator: string;
+  question: string;
+  options: string[];
+  results: number[];
+  totalVotes: number;
+  deadline: string;
+  createdAt: string;
+  bump: number;
+}
 
 export const PROGRAM_ID = "98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z";
