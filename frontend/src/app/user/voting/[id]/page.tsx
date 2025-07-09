@@ -7,6 +7,7 @@ import { Clock, Users, Hash, CheckCircle, AlertTriangle, ArrowLeft, Share2, Trop
 import VotingResultsVisualization from '@/components/voting/VotingResultsVisualization';
 import { useVoting } from '@/hooks/useProgram';
 import { useWallet } from '@solana/wallet-adapter-react';
+import useBlockchain from '@/hooks/useBlockchain';
 
 interface VotingDetails {
   id: string;
@@ -80,6 +81,7 @@ export default function VotingDetailPage() {
   const votingId = params.id as string;
   const { connected, publicKey } = useWallet();
   const { castVote, isConnected } = useVoting();
+  const { getVotingInfo, convertPDAsToPublicKeys, loading: blockchainLoading } = useBlockchain();
 
   const [voting, setVoting] = useState<VotingDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,17 +120,43 @@ export default function VotingDetailPage() {
 
     setIsVoting(true);
     try {
-      console.log('🗳️ Iniciando votación con smart contract...');
+      console.log('🗳️ Iniciando votación REAL con smart contract...');
       console.log('📋 Parámetros:', {
         votingId,
         selectedOption,
         wallet: publicKey.toString()
       });
 
-      // Llamar al smart contract real
-      await castVote(votingId, selectedOption);
+      // 1. OBTENER PDAs REALES del backend
+      console.log('🔍 Paso 1: Obteniendo PDAs del backend...');
+      const votingInfo = await getVotingInfo(votingId, publicKey.toString());
       
-      // Actualizar estado después del voto exitoso
+      if (!votingInfo) {
+        throw new Error('❌ No se pudieron obtener los PDAs del backend');
+      }
+      
+      console.log('✅ Paso 1 completado: PDAs obtenidos', votingInfo.blockchain.pdas);
+      
+      // 2. CONVERTIR PDAs a PublicKeys
+      console.log('🔄 Paso 2: Convirtiendo PDAs a PublicKeys...');
+      const pdaKeys = convertPDAsToPublicKeys(votingInfo.blockchain.pdas);
+      
+      console.log('✅ Paso 2 completado: PublicKeys preparados', {
+        vote: pdaKeys.vote.toString(),
+        user: pdaKeys.user.toString(),
+        membership: pdaKeys.membership.toString(),
+        participation: pdaKeys.participation.toString()
+      });
+      
+      // 3. LLAMAR AL SMART CONTRACT REAL
+      console.log('🚀 Paso 3: Llamando cast_vote() en blockchain...');
+      console.log('⚠️ Esta transacción requerirá firma de wallet');
+      
+      const result = await castVote(pdaKeys.vote, selectedOption);
+      
+      console.log('🎉 ¡ÉXITO! Voto registrado en blockchain:', result);
+      
+      // 4. ACTUALIZAR UI
       setVoting(prev => prev ? {
         ...prev,
         userVoted: true,
@@ -142,15 +170,29 @@ export default function VotingDetailPage() {
       setActiveView('results');
       setShowResults(true);
       
-      alert('✅ ¡Voto registrado exitosamente en blockchain! +1 punto de reputación ganado.');
+      alert(
+        '🎉 ¡VOTO REGISTRADO EXITOSAMENTE EN BLOCKCHAIN!\n\n' +
+        `✅ Transaction: ${result.transaction}\n` +
+        '⭐ +1 punto de reputación ganado\n' +
+        '🔗 Verificable en Solana devnet'
+      );
+      
     } catch (error: any) {
       console.error('❌ Error voting:', error);
       
       // Mostrar error específico al usuario
-      if (error.message.includes('desarrollo')) {
-        alert(`🚧 ${error.message}`);
+      if (error.message.includes('User rejected')) {
+        alert('❌ Transacción cancelada por el usuario');
+      } else if (error.message.includes('Insufficient funds')) {
+        alert('❌ Fondos insuficientes para pagar la transacción');
+      } else if (error.message.includes('Voting not found')) {
+        alert('❌ Votación no encontrada en la base de datos');
       } else {
-        alert(`❌ Error al registrar el voto: ${error.message}`);
+        alert(
+          `❌ Error al registrar el voto:\n\n` +
+          `${error.message}\n\n` +
+          'Por favor, verifica tu conexión y vuelve a intentar.'
+        );
       }
     } finally {
       setIsVoting(false);
@@ -456,13 +498,18 @@ export default function VotingDetailPage() {
             
             <button
               onClick={handleVote}
-              disabled={selectedOption === null || isVoting || !connected || !isConnected}
+              disabled={selectedOption === null || isVoting || !connected || !isConnected || blockchainLoading}
               className="bg-blue-600 text-white px-8 py-3 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
             >
               {isVoting ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Signing Transaction...</span>
+                  <span>Procesando en Blockchain...</span>
+                </>
+              ) : blockchainLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Obteniendo PDAs...</span>
                 </>
               ) : !connected ? (
                 <>
@@ -477,7 +524,7 @@ export default function VotingDetailPage() {
               ) : (
                 <>
                   <CheckCircle className="w-5 h-5" />
-                  <span>Sign & Submit Vote</span>
+                  <span>Vote on Blockchain</span>
                 </>
               )}
             </button>

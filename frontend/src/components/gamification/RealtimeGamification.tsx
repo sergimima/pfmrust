@@ -134,7 +134,7 @@ export default function RealtimeGamification({
         };
 
         setRecentGains(prev => [newGain, ...prev].slice(0, 5));
-        setCurrentPoints(prev => {
+        setCurrentPoints((prev: number) => {
           const newPoints = prev + randomGain.points;
           
           // Check for level up

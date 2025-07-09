@@ -6,6 +6,7 @@ import votesRouter from './votes';
 import statsRouter from './stats';
 import searchRouter from './search';
 import websocketsRouter from './websockets';
+import blockchainRouter from './blockchain';
 
 const router = Router();
 
@@ -16,6 +17,7 @@ router.use('/votes', votesRouter);
 router.use('/stats', statsRouter);
 router.use('/search', searchRouter);
 router.use('/websockets', websocketsRouter);
+router.use('/blockchain', blockchainRouter); // Nueva ruta blockchain
 
 // Ruta de información de la API
 router.get('/', (req, res) => {
@@ -29,11 +31,22 @@ router.get('/', (req, res) => {
       votes: '/api/votes',
       stats: '/api/stats',
       search: '/api/search',
-      websockets: '/api/websockets'
+      websockets: '/api/websockets',
+      blockchain: '/api/blockchain' // Nueva endpoint
     },
     realtime: {
       websocket: 'ws://localhost:3001',
       socketio: 'http://localhost:3001'
+    },
+    blockchain: {
+      programId: '98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z',
+      network: 'devnet',
+      endpoints: {
+        info: '/api/blockchain/info',
+        userPda: '/api/blockchain/user-pda/:wallet',
+        votePda: '/api/blockchain/vote-pda/:community/:creator',
+        votingInfo: 'POST /api/blockchain/voting-info'
+      }
     },
     documentation: '/api/docs',
     status: 'operational'

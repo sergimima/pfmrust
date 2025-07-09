@@ -1,99 +1,43 @@
-// frontend/src/hooks/useProgram.ts
+// frontend/src/hooks/useProgram.ts - IMPLEMENTACIÓN REAL CON ANCHOR
 import { useAnchorWallet, useConnection } from '@solana/wallet-adapter-react';
-import { AnchorProvider, Program, web3 } from '@coral-xyz/anchor';
+import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
 import { useMemo } from 'react';
-import { getProgramId } from '@/lib/solana';
+import { IDL } from '@/lib/idl';
+import { SystemProgram, PublicKey } from '@solana/web3.js';
 
 // Program ID del smart contract deployado
-const PROGRAM_ID = '98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z';
-
-// Tipos TypeScript para el programa (generar con anchor build)
-export interface VotingSystemProgram {
-  // Definir tipos del programa aquí
-  rpc: {
-    createUser: (params: any) => Promise<string>;
-    createCommunity: (params: any) => Promise<string>;
-    castVote: (params: any) => Promise<string>;
-    createVoting: (params: any) => Promise<string>;
-  };
-  account: {
-    user: {
-      fetch: (pubkey: web3.PublicKey) => Promise<any>;
-    };
-    community: {
-      fetch: (pubkey: web3.PublicKey) => Promise<any>;
-    };
-    voting: {
-      fetch: (pubkey: web3.PublicKey) => Promise<any>;
-    };
-  };
-}
+const PROGRAM_ID = new PublicKey('98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z');
 
 export const useProgram = () => {
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
 
-  const program = useMemo(() => {
-    if (!wallet) return null;
-
+  const program: Program<any> | null = useMemo(() => {
     try {
+      if (!wallet) {
+        console.log('❌ Wallet no conectada');
+        return null;
+      }
+
+      console.log('🔄 Inicializando programa Anchor REAL...');
+      
+      // Crear provider de Anchor REAL
       const provider = new AnchorProvider(
         connection,
         wallet,
         { commitment: 'confirmed' }
       );
-
-      // Por ahora, returnar un objeto básico
-      // En producción, usar: new Program(IDL, PROGRAM_ID, provider)
-      const programId = new web3.PublicKey(PROGRAM_ID);
       
-      return {
-        programId,
-        provider,
-        connected: true,
-        // Funciones mock que serán reemplazadas por Anchor
-        createUser: async (params: any) => {
-          console.log('🔧 createUser llamado:', params);
-          throw new Error('Función createUser no implementada - requiere IDL');
-        },
-        createCommunity: async (params: any) => {
-          console.log('🔧 createCommunity llamado:', params);
-          throw new Error('Función createCommunity no implementada - requiere IDL');
-        },
-        createVoting: async (params: any) => {
-          console.log('🔧 createVoting llamado:', params);
-          throw new Error('Función createVoting no implementada - requiere IDL');
-        },
-        castVote: async (voteParams: {
-          votingId: string;
-          selectedOption: number;
-          userWallet: web3.PublicKey;
-        }) => {
-          console.log('🚨 INTENTO DE VOTO DETECTADO:', voteParams);
-          console.log('⚠️ Esta función requiere implementación completa de Anchor');
-          
-          // Simular el proceso de firma
-          console.log('🔐 Solicitando firma de wallet...');
-          
-          // En implementación real:
-          // return await program.rpc.castVote(...)
-          
-          throw new Error(
-            `❌ Función castVote no implementada completamente.\n` +
-            `🔧 Se requiere:\n` +
-            `1. IDL del programa Solana\n` +
-            `2. Configuración completa de Anchor\n` +
-            `3. Derivación de PDAs correctas\n` +
-            `4. Manejo de firmas de wallet\n\n` +
-            `📋 Parámetros recibidos:\n` +
-            `- Voting ID: ${voteParams.votingId}\n` +
-            `- Option: ${voteParams.selectedOption}\n` +
-            `- Wallet: ${voteParams.userWallet.toString()}`
-          );
-        }
-      };
+      console.log('🔑 Usando Program ID:', PROGRAM_ID.toString());
+      
+      // Crear programa Anchor REAL con IDL
+      const program = new Program(IDL as any, PROGRAM_ID, provider);
+      
+      console.log('✅ Programa Anchor REAL inicializado exitosamente');
+      return program;
+      
     } catch (error) {
-      console.error('❌ Error inicializando programa:', error);
+      console.error('❌ Error inicializando programa Anchor:', error);
       return null;
     }
   }, [connection, wallet]);
@@ -102,98 +46,382 @@ export const useProgram = () => {
     program,
     isConnected: !!program,
     wallet,
-    connection
+    connection,
+    programId: PROGRAM_ID
   };
 };
 
-// Hook para manejar votaciones específicamente
-export const useVoting = () => {
+// Hook para manejar usuarios
+export const useUser = () => {
   const { program, isConnected, wallet } = useProgram();
 
-  const castVote = async (votingId: string, selectedOption: number) => {
+  const createUser = async () => {
     if (!program || !wallet?.publicKey) {
       throw new Error('❌ Wallet no conectado o programa no disponible');
     }
 
-    console.log('🗳️ Iniciando proceso de votación...');
-    console.log('📊 Voting ID:', votingId);
-    console.log('✅ Opción seleccionada:', selectedOption);
-    console.log('👤 Wallet:', wallet.publicKey.toString());
-
+    console.log('👤 Creando usuario REAL en blockchain...');
+    
     try {
-      // Llamar a la función del programa
-      const result = await program.castVote({
-        votingId,
-        selectedOption,
-        userWallet: wallet.publicKey
-      });
+      // Derivar PDA para el usuario
+      const [userPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('user'), wallet.publicKey.toBuffer()],
+        program.programId
+      );
 
-      console.log('✅ Voto registrado exitosamente');
-      return result;
+      console.log('📝 User PDA:', userPda.toString());
+      console.log('🔐 Wallet requiere FIRMA para crear usuario');
+
+      // Llamar a create_user del smart contract REAL
+      const tx = await program.methods
+        .createUser()
+        .accounts({
+          user: userPda,
+          wallet: wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      console.log('✅ Usuario creado exitosamente en blockchain');
+      console.log('🔗 Transaction signature:', tx);
+      
+      return { userPda, transaction: tx };
     } catch (error: any) {
-      console.error('❌ Error al votar:', error);
-      
-      // Mostrar error detallado al usuario
-      if (error.message.includes('no implementada')) {
-        throw new Error(
-          `🚧 Sistema en desarrollo\n\n` +
-          `El sistema de votación con smart contracts está en desarrollo.\n` +
-          `Por favor, contacta al equipo de desarrollo para completar la integración.\n\n` +
-          `Error técnico: ${error.message}`
-        );
-      }
-      
-      throw error;
+      console.error('❌ Error creando usuario en blockchain:', error);
+      throw new Error(`Error creando usuario: ${error.message}`);
     }
   };
 
-  const createVoting = async (votingData: any) => {
-    if (!program || !wallet?.publicKey) {
-      throw new Error('❌ Wallet no conectado o programa no disponible');
-    }
-
-    console.log('✨ Creando nueva votación...', votingData);
+  const getUserPDA = () => {
+    if (!wallet?.publicKey) return null;
     
+    const [userPda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('user'), wallet.publicKey.toBuffer()],
+      PROGRAM_ID
+    );
+    
+    return userPda;
+  };
+
+  const fetchUser = async () => {
+    if (!program || !wallet?.publicKey) return null;
+
     try {
-      const result = await program.createVoting(votingData);
-      console.log('✅ Votación creada exitosamente');
-      return result;
-    } catch (error: any) {
-      console.error('❌ Error creando votación:', error);
-      throw new Error(
-        `🚧 Sistema en desarrollo\n\n` +
-        `La creación de votaciones con smart contracts está en desarrollo.\n` +
-        `Error técnico: ${error.message}`
-      );
+      const userPda = getUserPDA();
+      if (!userPda) return null;
+
+      const userAccount = await program.account.user.fetch(userPda);
+      console.log('✅ Usuario obtenido desde blockchain:', userAccount);
+      
+      return {
+        address: userPda,
+        ...(userAccount as Record<string, any>)
+      };
+    } catch (error) {
+      console.log('ℹ️ Usuario no existe en blockchain:', error);
+      return null;
     }
   };
 
   return {
-    castVote,
-    createVoting,
+    createUser,
+    fetchUser,
+    getUserPDA,
     isConnected,
     wallet
   };
 };
 
-// Utilidades para derivar PDAs (Program Derived Addresses)
-export const getPDAForUser = (userWallet: web3.PublicKey): [web3.PublicKey, number] => {
-  return web3.PublicKey.findProgramAddressSync(
+// Hook para manejar comunidades
+export const useCommunity = () => {
+  const { program, isConnected, wallet } = useProgram();
+
+  const createCommunity = async (params: {
+    name: string;
+    category: number;
+    quorumPercentage: number;
+    requiresApproval: boolean;
+  }) => {
+    if (!program || !wallet?.publicKey) {
+      throw new Error('❌ Wallet no conectado o programa no disponible');
+    }
+
+    console.log('🏘️ Creando comunidad REAL en blockchain...', params);
+    
+    try {
+      // Derivar PDA para la comunidad
+      const [communityPda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('community'),
+          wallet.publicKey.toBuffer(),
+          Buffer.from(params.name)
+        ],
+        program.programId
+      );
+
+      console.log('📝 Community PDA:', communityPda.toString());
+      console.log('🔐 Wallet requiere FIRMA para crear comunidad');
+
+      // Llamar a create_community del smart contract REAL
+      const tx = await program.methods
+        .createCommunity(
+          params.name,
+          params.category,
+          params.quorumPercentage,
+          params.requiresApproval
+        )
+        .accounts({
+          community: communityPda,
+          authority: wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      console.log('✅ Comunidad creada exitosamente en blockchain');
+      console.log('🔗 Transaction signature:', tx);
+      
+      return { communityPda, transaction: tx };
+    } catch (error: any) {
+      console.error('❌ Error creando comunidad en blockchain:', error);
+      throw new Error(`Error creando comunidad: ${error.message}`);
+    }
+  };
+
+  const joinCommunity = async (communityPda: PublicKey) => {
+    if (!program || !wallet?.publicKey) {
+      throw new Error('❌ Wallet no conectado o programa no disponible');
+    }
+
+    console.log('🤝 Uniéndose REAL a comunidad...', communityPda.toString());
+    
+    try {
+      // Derivar PDA para membership
+      const [membershipPda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('membership'),
+          communityPda.toBuffer(),
+          wallet.publicKey.toBuffer()
+        ],
+        program.programId
+      );
+
+      // Obtener PDA del usuario
+      const [userPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('user'), wallet.publicKey.toBuffer()],
+        program.programId
+      );
+
+      console.log('📝 Membership PDA:', membershipPda.toString());
+      console.log('🔐 Wallet requiere FIRMA para unirse');
+
+      // Llamar a join_community del smart contract REAL
+      const tx = await program.methods
+        .joinCommunity()
+        .accounts({
+          membership: membershipPda,
+          community: communityPda,
+          user: userPda,
+          member: wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      console.log('✅ Unido a comunidad exitosamente en blockchain');
+      console.log('🔗 Transaction signature:', tx);
+      
+      return { membershipPda, transaction: tx };
+    } catch (error: any) {
+      console.error('❌ Error uniéndose a comunidad en blockchain:', error);
+      throw new Error(`Error uniéndose a comunidad: ${error.message}`);
+    }
+  };
+
+  return {
+    createCommunity,
+    joinCommunity,
+    isConnected,
+    wallet
+  };
+};
+
+// Hook para manejar votaciones
+export const useVoting = () => {
+  const { program, isConnected, wallet } = useProgram();
+
+  const createVoting = async (params: {
+    question: string;
+    options: string[];
+    voteType: 'Opinion' | 'Knowledge';
+    correctAnswer?: number;
+    deadlineHours: number;
+    quorumRequired: number;
+    communityPda: PublicKey;
+  }) => {
+    if (!program || !wallet?.publicKey) {
+      throw new Error('❌ Wallet no conectado o programa no disponible');
+    }
+
+    console.log('✨ Creando votación REAL en blockchain...', params);
+    
+    try {
+      // Derivar PDA para la votación
+      const [votePda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('vote'),
+          params.communityPda.toBuffer(),
+          wallet.publicKey.toBuffer()
+        ],
+        program.programId
+      );
+
+      // Obtener PDA del usuario
+      const [userPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('user'), wallet.publicKey.toBuffer()],
+        program.programId
+      );
+
+      // Fee pool PDA
+      const [feePoolPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('fee_pool')],
+        program.programId
+      );
+
+      console.log('📝 Vote PDA:', votePda.toString());
+      console.log('🔐 Wallet requiere FIRMA para crear votación');
+
+      // Convertir tipo de voto
+      const voteTypeEnum = params.voteType === 'Knowledge' ? { knowledge: {} } : { opinion: {} };
+
+      // Llamar a create_voting del smart contract REAL
+      const tx = await program.methods
+        .createVoting(
+          params.question,
+          params.options,
+          voteTypeEnum,
+          params.correctAnswer || null,
+          params.deadlineHours,
+          new BN(params.quorumRequired),
+          null, // quorum_percentage
+          false // use_percentage_quorum
+        )
+        .accounts({
+          vote: votePda,
+          community: params.communityPda,
+          user: userPda,
+          creator: wallet.publicKey,
+          feePool: feePoolPda,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      console.log('✅ Votación creada exitosamente en blockchain');
+      console.log('🔗 Transaction signature:', tx);
+      
+      return { votePda, transaction: tx };
+    } catch (error: any) {
+      console.error('❌ Error creando votación en blockchain:', error);
+      throw new Error(`Error creando votación: ${error.message}`);
+    }
+  };
+
+  const castVote = async (votePda: PublicKey, selectedOption: number) => {
+    if (!program || !wallet?.publicKey) {
+      throw new Error('❌ Wallet no conectado o programa no disponible');
+    }
+
+    console.log('🗳️ Votando REAL en blockchain...', { votePda: votePda.toString(), selectedOption });
+    
+    try {
+      // Derivar PDA para participación
+      const [participationPda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('participation'),
+          votePda.toBuffer(),
+          wallet.publicKey.toBuffer()
+        ],
+        program.programId
+      );
+
+      // Obtener PDA del usuario
+      const [userPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('user'), wallet.publicKey.toBuffer()],
+        program.programId
+      );
+
+      // Obtener la votación para saber la comunidad
+      const voteAccount = await program.account.vote.fetch(votePda);
+      const community = (voteAccount as any).community;
+      
+      // Derivar PDA para membership
+      const [membershipPda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('membership'),
+          community.toBuffer(),
+          wallet.publicKey.toBuffer()
+        ],
+        program.programId
+      );
+
+      console.log('📝 Participation PDA:', participationPda.toString());
+      console.log('📝 Membership PDA:', membershipPda.toString());
+      console.log('🔐 Wallet requiere FIRMA para votar');
+
+      // Llamar a cast_vote del smart contract REAL
+      const tx = await program.methods
+        .castVote(selectedOption)
+        .accounts({
+          participation: participationPda,
+          vote: votePda,
+          membership: membershipPda,
+          user: userPda,
+          voter: wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      console.log('✅ Voto registrado exitosamente en blockchain');
+      console.log('🔗 Transaction signature:', tx);
+      
+      return { participationPda, transaction: tx };
+    } catch (error: any) {
+      console.error('❌ Error votando en blockchain:', error);
+      throw new Error(`Error votando: ${error.message}`);
+    }
+  };
+
+  return {
+    createVoting,
+    castVote,
+    isConnected,
+    wallet
+  };
+};
+
+// Utilidades para derivar PDAs
+export const getPDAForUser = (userWallet: PublicKey): [PublicKey, number] => {
+  return PublicKey.findProgramAddressSync(
     [Buffer.from('user'), userWallet.toBuffer()],
-    new web3.PublicKey(PROGRAM_ID)
+    PROGRAM_ID
   );
 };
 
-export const getPDAForVoting = (votingId: string): [web3.PublicKey, number] => {
-  return web3.PublicKey.findProgramAddressSync(
-    [Buffer.from('voting'), Buffer.from(votingId)],
-    new web3.PublicKey(PROGRAM_ID)
+export const getPDAForCommunity = (authority: PublicKey, name: string): [PublicKey, number] => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('community'), authority.toBuffer(), Buffer.from(name)],
+    PROGRAM_ID
   );
 };
 
-export const getPDAForCommunity = (communityId: string): [web3.PublicKey, number] => {
-  return web3.PublicKey.findProgramAddressSync(
-    [Buffer.from('community'), Buffer.from(communityId)],
-    new web3.PublicKey(PROGRAM_ID)
+export const getPDAForVoting = (community: PublicKey, creator: PublicKey): [PublicKey, number] => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('vote'), community.toBuffer(), creator.toBuffer()],
+    PROGRAM_ID
+  );
+};
+
+export const getPDAForMembership = (community: PublicKey, user: PublicKey): [PublicKey, number] => {
+  return PublicKey.findProgramAddressSync(
+    [Buffer.from('membership'), community.toBuffer(), user.toBuffer()],
+    PROGRAM_ID
   );
 };

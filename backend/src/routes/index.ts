@@ -13,6 +13,7 @@ import communitiesRouter from './api/communities';
 import votesRouter from './api/votes';
 import statsRouter from './api/stats';
 import searchRouter from './api/search';
+import blockchainRouter from './api/blockchain';
 
 // Mount basic routes
 router.use('/', healthRoutes);
@@ -25,6 +26,7 @@ router.use('/communities', communitiesRouter);
 router.use('/votes', votesRouter);
 router.use('/stats', statsRouter);
 router.use('/search', searchRouter);
+router.use('/blockchain', blockchainRouter);
 
 // API info endpoint
 router.get('/', (req, res) => {
@@ -37,12 +39,13 @@ router.get('/', (req, res) => {
       communities: '/api/communities',
       votes: '/api/votes',
       stats: '/api/stats',
-      search: '/api/search'
+      search: '/api/search',
+      blockchain: '/api/blockchain'
     },
     status: 'operational'
   });
 });
 
-console.log('🚀 Routes mounted successfully: health, cache, jobs, users, communities, votes, stats, search');
+console.log('🚀 Routes mounted successfully: health, cache, jobs, users, communities, votes, stats, search, blockchain');
 
 export default router;

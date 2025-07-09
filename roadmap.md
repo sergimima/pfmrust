@@ -420,3 +420,5 @@ Super Admin: GJENwjwdh7rAcZyrYh76SDjwgYrhncfhQKaMNGfSHirw
 **OPCIÓN B**: Comenzar Fase 3 (Backend) ahora que smart contracts están sólidos
 
 **Recomendación:** Los smart contracts están suficientemente maduros para comenzar backend.
+
+

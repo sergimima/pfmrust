@@ -33,17 +33,28 @@ export const createConnection = (): Connection => {
 
 // Get program ID
 export const getProgramId = (): PublicKey | null => {
-  const programIdStr = process.env.NEXT_PUBLIC_PROGRAM_ID;
-  if (!programIdStr || programIdStr === 'YOUR_PROGRAM_ID_HERE') {
-    console.warn('⚠️ Program ID not configured in environment variables');
-    return null;
+  // Usar el ID del programa conocido como fallback
+  const knownProgramId = '98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z';
+  
+  // Intentar obtener el ID desde variables de entorno primero
+  const programIdStr = process.env.NEXT_PUBLIC_PROGRAM_ID || knownProgramId;
+  
+  if (programIdStr === 'YOUR_PROGRAM_ID_HERE') {
+    console.warn('⚠️ Program ID no configurado correctamente en variables de entorno');
+    // Usar el ID conocido en lugar de retornar null
+    return new PublicKey(knownProgramId);
   }
   
   try {
     return new PublicKey(programIdStr);
   } catch (error) {
-    console.error('❌ Invalid Program ID format:', error);
-    return null;
+    console.error('❌ Formato de Program ID inválido:', error);
+    // Intentar con el ID conocido como último recurso
+    try {
+      return new PublicKey(knownProgramId);
+    } catch {
+      return null;
+    }
   }
 };
 
