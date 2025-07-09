@@ -9,6 +9,7 @@ import VotingGrid from '@/components/user/categories/VotingGrid';
 import VotingFilters from '@/components/user/categories/VotingFilters';
 import VotingStats from '@/components/voting/VotingStats';
 import { BarChart3, Grid3X3 } from 'lucide-react';
+import { apiClient } from '@/lib/api';
 
 interface Voting {
   id: string;
@@ -138,16 +139,74 @@ export default function VotingPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  const [votings, setVotings] = useState<Voting[]>(mockVotings);
-  const [filteredVotings, setFilteredVotings] = useState<Voting[]>(mockVotings);
+  const [votings, setVotings] = useState<Voting[]>([]);
+  const [filteredVotings, setFilteredVotings] = useState<Voting[]>([]);
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'all');
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
   const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || 'all');
   const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'deadline');
   const [showOnlyJoined, setShowOnlyJoined] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'stats'>('grid');
+  
+  useEffect(() => {
+    const fetchVotings = async () => {
+      setLoading(true);
+      try {
+        // Construir parámetros de consulta basados en filtros actuales
+        const params: any = {};
+        if (selectedCategory !== 'all') params.category = selectedCategory;
+        if (statusFilter !== 'all') params.status = statusFilter;
+        if (typeFilter !== 'all') params.type = typeFilter;
+        if (searchQuery) params.search = searchQuery;
+        if (sortBy) params.sort = sortBy;
+        
+        // Obtener votaciones del backend
+        const response = await apiClient.getVotes(params);
+        
+        if (response.data && Array.isArray(response.data)) {
+          // Transformar los datos al formato esperado
+          const votingsData: Voting[] = response.data.map((voting: any) => ({
+            id: voting.id.toString(),
+            title: voting.title,
+            description: voting.description,
+            community: voting.community?.name || 'Comunidad Desconocida',
+            category: voting.category || 'general',
+            type: voting.type as 'Opinion' | 'Knowledge',
+            status: voting.status as 'Active' | 'Completed' | 'Failed',
+            timeLeft: voting.timeLeft || 'Finalizado',
+            deadline: voting.deadline || new Date().toISOString(),
+            participantCount: voting.participantCount || 0,
+            quorumReached: voting.quorumReached || false,
+            userVoted: voting.userVoted || false,
+            priority: voting.priority as 'high' | 'medium' | 'low',
+            options: voting.options || [],
+            correctAnswer: voting.correctAnswer,
+            createdBy: voting.createdBy || 'unknown',
+            createdAt: voting.createdAt || new Date().toISOString()
+          }));
+          
+          setVotings(votingsData);
+          setFilteredVotings(votingsData);
+        } else {
+          // Si no hay datos o hay un error, usar datos mock como fallback
+          console.warn('No se encontraron datos de votaciones, usando datos mock como fallback');
+          setVotings(mockVotings);
+          setFilteredVotings(mockVotings);
+        }
+      } catch (error) {
+        console.error('Error al obtener votaciones:', error);
+        // Si hay error, usar datos mock como fallback
+        setVotings(mockVotings);
+        setFilteredVotings(mockVotings);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchVotings();
+  }, [selectedCategory, searchQuery, statusFilter, typeFilter, sortBy]);
 
   // Update URL when filters change
   useEffect(() => {

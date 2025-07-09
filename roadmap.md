@@ -439,3 +439,65 @@ PUT /api/users/:wallet - Para actualizar usuarios existentes
 Endpoints para Membresías:
 POST /api/communities/:id/members - Para unirse a una comunidad
 DELETE /api/communities/:id/members/:wallet - Para abandonar una comunidad
+
+
+Endpoints que operan sobre base de datos
+Usuarios (/api/users)
+GET /api/users - Listar todos los usuarios con paginación
+GET /api/users/:wallet - Obtener usuario específico por wallet
+Comunidades (/api/communities)
+GET /api/communities - Listar todas las comunidades con filtros
+GET /api/communities/:id - Obtener comunidad específica por ID
+POST /api/communities - Crear una nueva comunidad
+❌ No existe endpoint para unirse a una comunidad (falta implementar)
+Votaciones (/api/votes)
+GET /api/votes - Listar todas las votaciones con filtros
+GET /api/votes/:id - Obtener votación específica por ID
+❌ No existe endpoint para crear una votación (falta implementar)
+❌ No existe endpoint para votar (falta implementar)
+Estadísticas (/api/stats)
+GET /api/stats/overview - Obtener estadísticas generales del sistema
+GET /api/stats/user/:userId - Obtener estadísticas específicas de un usuario
+GET /api/stats/community/:communityId - Obtener estadísticas de una comunidad
+GET /api/stats/vote/:voteId - Obtener estadísticas específicas de una votación
+GET /api/stats/engagement - Obtener métricas de engagement con series temporales
+GET /api/stats/leaderboard - Obtener leaderboard analytics
+GET /api/stats/categories - Obtener analytics por categorías
+GET /api/stats/realtime - Obtener métricas en tiempo real
+POST /api/stats/reports - Generar reportes personalizados
+DELETE /api/stats/cache - Limpiar cache de analytics
+GET /api/stats/system - Obtener estadísticas del sistema y Event Listeners
+Endpoints que interactúan con blockchain (Solana/Anchor)
+Blockchain (/api/blockchain)
+GET /api/blockchain/user-pda/:wallet - Derivar PDA para un usuario
+GET /api/blockchain/vote-pda/:community/:creator - Derivar PDA para una votación
+POST /api/blockchain/voting-info - Obtener información completa para votar
+GET /api/blockchain/info - Obtener estado del programa y configuración
+Endpoints faltantes (necesarios para completar la funcionalidad)
+POST /api/communities/join - Para unirse a una comunidad
+POST /api/votes - Para crear una nueva votación
+POST /api/votes/:id/vote - Para emitir un voto en una votación específica
+POST /api/communities/:id/members - Para gestionar miembros de una comunidad
+DELETE /api/communities/:id/members/:userId - Para eliminar un miembro de una comunidad
+
+
+Sí, en la parte de blockchain solo hay 4 endpoints implementados actualmente:
+
+GET /api/blockchain/user-pda/:wallet - Derivar PDA para un usuario
+GET /api/blockchain/vote-pda/:community/:creator - Derivar PDA para una votación
+POST /api/blockchain/voting-info - Obtener información completa para votar
+GET /api/blockchain/info - Obtener estado del programa y configuración
+Los endpoints que faltan implementar necesitarían interactuar tanto con la base de datos como con la blockchain:
+
+POST /api/communities/join - Requiere:
+Base de datos: Registrar la membresía del usuario en la comunidad
+Blockchain: Crear la cuenta de membresía (PDA) en el programa Solana
+POST /api/votes - Requiere:
+Base de datos: Crear el registro de votación
+Blockchain: Inicializar la cuenta de votación en el programa Solana
+POST /api/votes/:id/vote - Requiere:
+Base de datos: Registrar el voto del usuario
+Blockchain: Ejecutar la instrucción cast_vote en el programa Solana
+POST /api/communities/:id/members - Requiere:
+Base de datos: Registrar la membresía
+Blockchain: Crear la cuenta de membresía en el programa Solana

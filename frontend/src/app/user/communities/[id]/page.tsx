@@ -218,7 +218,7 @@ export default function CommunityDetailPage() {
           try {
             const votingsResponse = await apiClient.getVotes({ communityId });
             if (votingsResponse.data && Array.isArray(votingsResponse.data)) {
-              const votingsData: VotingPreview[] = votingsResponse.data.map(voting => ({
+              const votingsData: VotingPreview[] = votingsResponse.data.map((voting: any) => ({
                 id: voting.id.toString(),
                 title: voting.title,
                 type: voting.type as 'Opinion' | 'Knowledge',
