@@ -49,30 +49,51 @@ Una vez ejecutado `docker-compose up -d`:
 - **Adminer (DB Admin)**: http://localhost:8080
 
 ### Development Servers (Local)
-- **Backend API**: http://localhost:3001 (npm run dev)
+- **Backend API**: http://localhost:3002 (npm run dev) - *Puerto cambiado para evitar conflictos*
 - **Frontend App**: http://localhost:3000 (npm run dev)
+- **Smart Contract**: Desplegado en Solana Devnet
 
 ## 📁 Structure
 ```
 pfmrust/
-├── program/           # Solana smart contracts (Anchor)
-├── backend/           # API + Event listeners + Database  
-├── frontend/          # React web application
+├── voting-system/     # Solana smart contracts (Anchor) ✅ DESPLEGADO
+├── backend/           # API + Event listeners + Database ✅ FUNCIONANDO  
+├── frontend/          # React web application ✅ INTEGRADO CON BLOCKCHAIN
 ├── scripts/           # Automation and utilities
 └── docs/              # Documentation
 ```
 
 ## 🎯 Features
-- ✅ Multi-role governance (Admin, Moderator, User)
-- ✅ Configurable quorum voting
-- ✅ Gamification with reputation system
-- ✅ Categories and advanced search
-- ✅ Real-time analytics dashboard
-- ✅ Hybrid blockchain + database architecture
+- ✅ **Smart Contract Desplegado**: Programa Anchor funcionando en Solana
+- ✅ **Creación de Comunidades**: Integración frontend-blockchain completa
+- ✅ **Sistema de Votaciones**: Creación y gestión de votaciones descentralizadas
+- ✅ **Multi-role governance**: Admin, Moderator, User roles
+- ✅ **Quorum configurable**: Validación de participación mínima
+- ✅ **Gamificación**: Sistema de reputación y niveles
+- ✅ **Categorías**: Organización por temas
+- ✅ **Arquitectura híbrida**: Blockchain + database
+- ✅ **Serialización manual**: Solución a problemas de compatibilidad Anchor
 
 ## 📊 Progress
-**Current Phase**: 1.1 - Setup del Entorno de Desarrollo  
-**Next**: Smart contracts architecture
+**Current Phase**: 2.3 - Integración Frontend-Blockchain ✅  
+**Status**: Smart contract desplegado y funcional  
+**Program ID**: `98eSBn9oRdJcPzFUuRMgktewygF6HfkwiCQUJuJBw1z`  
+**Next**: Optimización y testing avanzado
+
+## 🔧 Problemas Técnicos Resueltos
+
+### Integración Frontend-Blockchain
+- ✅ **Error `InstructionFallbackNotFound`**: Corregidos discriminadores de instrucciones
+- ✅ **Incompatibilidad Anchor**: Implementada serialización manual de datos
+- ✅ **Deserialización de parámetros**: Alineados tipos entre frontend y smart contract
+- ✅ **Validación de quorum**: Implementadas validaciones de rango (1-100)
+- ✅ **Gestión de PDAs**: Correcta derivación de Program Derived Addresses
+- ✅ **Conflictos de puertos**: Backend movido al puerto 3002
+
+### Arquitectura de Datos
+- ✅ **IDL sincronizado**: Verificado contra smart contract desplegado
+- ✅ **Tipos TypeScript**: Interfaces alineadas con estructuras Rust
+- ✅ **Manejo de errores**: Implementado logging detallado para debugging
 
 ## 🔗 Links
 - [Business Plan](./business.md)
