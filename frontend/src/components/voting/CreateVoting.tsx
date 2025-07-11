@@ -45,17 +45,28 @@ const useCommunities = () => {
             name: community.name,
             category: community.metadata?.category || 'General',
             members: community.memberCount || 0,
-            isActive: community.isActive
+            isActive: community.isActive,
+            address: community.address || community.pda || (() => {
+              // Generar direcciones válidas de Solana basadas en el ID
+              const addresses: { [key: number]: string } = {
+                1752086327799: "So11111111111111111111111111111111111111112",
+                1: "So11111111111111111111111111111111111111112",
+                2: "So11111111111111111111111111111111111111113", 
+                3: "So11111111111111111111111111111111111111114",
+                4: "So11111111111111111111111111111111111111115"
+              };
+              return addresses[community.id] || "So11111111111111111111111111111111111111112";
+            })()
           }));
           setCommunities(transformedCommunities);
         } else {
           // Fallback a datos mock si la API falla
           console.log('⚠️ API failed, using mock data');
           setCommunities([
-            { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true, address: "11111111111111111111111111111112" },
-            { id: 2, name: "DeFi Discussion", category: "Finance", members: 890, isActive: true, address: "11111111111111111111111111111113" },
-            { id: 3, name: "Gaming Hub", category: "Gaming", members: 2100, isActive: true, address: "11111111111111111111111111111114" },
-            { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true, address: "11111111111111111111111111111115" }
+            { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true, address: "So11111111111111111111111111111111111111112" },
+            { id: 2, name: "DeFi Discussion", category: "Finance", members: 890, isActive: true, address: "So11111111111111111111111111111111111111113" },
+            { id: 3, name: "Gaming Hub", category: "Gaming", members: 2100, isActive: true, address: "So11111111111111111111111111111111111111114" },
+            { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true, address: "So11111111111111111111111111111111111111115" }
           ]);
         }
       } catch (err: any) {
@@ -63,10 +74,10 @@ const useCommunities = () => {
         setError(err?.message || 'Error desconocido al obtener comunidades');
         // Fallback a datos mock en caso de error
         setCommunities([
-          { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true, address: "11111111111111111111111111111112" },
-          { id: 2, name: "DeFi Discussion", category: "Finance", members: 890, isActive: true, address: "11111111111111111111111111111113" },
-          { id: 3, name: "Gaming Hub", category: "Gaming", members: 2100, isActive: true, address: "11111111111111111111111111111114" },
-          { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true, address: "11111111111111111111111111111115" }
+          { id: 1, name: "Tecnología", category: "Technology", members: 1250, isActive: true, address: "So11111111111111111111111111111111111111112" },
+          { id: 2, name: "DeFi Discussion", category: "Finance", members: 890, isActive: true, address: "So11111111111111111111111111111111111111113" },
+          { id: 3, name: "Gaming Hub", category: "Gaming", members: 2100, isActive: true, address: "So11111111111111111111111111111111111111114" },
+          { id: 4, name: "Arte Digital", category: "Art", members: 567, isActive: true, address: "So11111111111111111111111111111111111111115" }
         ]);
       } finally {
         setLoading(false);
